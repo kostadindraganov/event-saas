@@ -1,0 +1,10 @@
+{
+  "Common": {
+    "appName": "EVENT-REVIEW",
+    "search": "Search",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "signOut": "Sign out"
+  },
+  "Home": { "title": "All wedding services in one place" }
+}

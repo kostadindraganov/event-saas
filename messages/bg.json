@@ -1,0 +1,10 @@
+{
+  "Common": {
+    "appName": "EVENT-REVIEW",
+    "search": "Търси",
+    "signIn": "Вход",
+    "signUp": "Регистрация",
+    "signOut": "Изход"
+  },
+  "Home": { "title": "Всички сватбени услуги на едно място" }
+}
