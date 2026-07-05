@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# repo-local, not part of the app
+.DS_Store
+demo/
+codebase-memory-mcp/
+.superpowers/
