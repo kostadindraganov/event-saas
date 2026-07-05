@@ -6,5 +6,16 @@
     "signUp": "Sign up",
     "signOut": "Sign out"
   },
-  "Home": { "title": "All wedding services in one place" }
+  "Home": { "title": "All wedding services in one place" },
+  "Auth": {
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "signInTitle": "Sign in",
+    "signUpTitle": "Create account",
+    "google": "Continue with Google",
+    "noAccount": "No account yet?",
+    "haveAccount": "Already have an account?",
+    "errorInvalid": "Invalid email or password"
+  }
 }
