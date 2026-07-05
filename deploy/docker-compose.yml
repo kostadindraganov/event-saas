@@ -1,0 +1,16 @@
+services:
+  app:
+    image: event-review:latest
+    restart: unless-stopped
+    env_file: /opt/event-review/.env
+    ports:
+      - "127.0.0.1:3000:3000"
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+volumes:
+  caddy_data:
