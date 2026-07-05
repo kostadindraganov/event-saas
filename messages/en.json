@@ -16,6 +16,9 @@
     "google": "Continue with Google",
     "noAccount": "No account yet?",
     "haveAccount": "Already have an account?",
-    "errorInvalid": "Invalid email or password"
+    "errorInvalid": "Invalid email or password",
+    "errorEmail": "Enter a valid email",
+    "errorPassword": "Password must be at least 8 characters",
+    "errorName": "Name must be at least 2 characters"
   }
 }

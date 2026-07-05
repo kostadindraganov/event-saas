@@ -46,15 +46,24 @@ export function AuthForm({ mode }: { mode: "signIn" | "signUp" }) {
         <div className="space-y-2">
           <Label htmlFor="name">{t("name")}</Label>
           <Input id="name" {...form.register("name")} />
+          {form.formState.errors.name && (
+            <p role="alert" className="text-sm text-destructive">{t("errorName")}</p>
+          )}
         </div>
       )}
       <div className="space-y-2">
         <Label htmlFor="email">{t("email")}</Label>
         <Input id="email" type="email" {...form.register("email")} />
+        {form.formState.errors.email && (
+          <p role="alert" className="text-sm text-destructive">{t("errorEmail")}</p>
+        )}
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">{t("password")}</Label>
         <Input id="password" type="password" {...form.register("password")} />
+        {form.formState.errors.password && (
+          <p role="alert" className="text-sm text-destructive">{t("errorPassword")}</p>
+        )}
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{t("errorInvalid")}</p>}
       <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
