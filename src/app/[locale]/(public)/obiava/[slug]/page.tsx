@@ -8,6 +8,8 @@ import { JsonLd } from "@/components/catalog/json-ld";
 import { SaveButton } from "@/components/saved/save-button";
 import { ListingGallery } from "@/components/catalog/listing-gallery";
 import { PackageCard } from "@/components/catalog/package-card";
+import { InquiryForm } from "@/components/messaging/inquiry-form";
+import { ResponseTimeBadge } from "@/components/messaging/response-time-badge";
 import { cfImageUrl } from "@/lib/cf-image-url";
 import { formatEuro } from "@/lib/money";
 import { buildLocalizedUrls, publicMetadata } from "@/lib/seo";
@@ -43,6 +45,7 @@ export default async function ListingPage({
   if (!listing) notFound();
 
   const t = await getTranslations("Listing");
+  const tMsg = await getTranslations("Messages");
   const categoryName = locale === "bg" ? listing.categoryNameBg : listing.categoryNameEn;
   const location = listing.wholeCountry ? t("wholeCountry") : listing.cityName ?? "";
 
@@ -81,6 +84,9 @@ export default async function ListingPage({
             <span className="text-muted-foreground">({listing.reviewCount})</span>
           </span>
         )}
+        <div className="mt-3">
+          <ResponseTimeBadge avgResponseMinutes={listing.vendorAvgResponseMinutes} />
+        </div>
       </header>
 
       {(listing.images.length > 0 || listing.videos.length > 0) && (
@@ -122,6 +128,11 @@ export default async function ListingPage({
           </div>
         </section>
       )}
+
+      <section className="mb-8">
+        <h2 className="mb-3 font-serif text-2xl">{tMsg("inquiryTitle")}</h2>
+        <InquiryForm listingId={listing.id} />
+      </section>
 
       {listing.serviceRegionNames.length > 0 && (
         <section className="mb-8">
