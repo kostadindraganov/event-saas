@@ -1,0 +1,62 @@
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
+import { cachedCategoriesWithCounts } from "@/data/catalog/public-cached";
+import { Button } from "@/components/ui/button";
+import { SearchHero } from "@/components/catalog/search-hero";
+
+export const revalidate = 3600;
+
+export default async function HomePage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+
+  const t = await getTranslations("Home");
+  const categories = await cachedCategoriesWithCounts();
+
+  return (
+    <main>
+      <section className="border-b border-border bg-muted/30">
+        <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:py-24">
+          <h1 className="font-serif text-4xl sm:text-5xl">{t("heroTitle")}</h1>
+          <p className="mx-auto mt-3 max-w-xl text-muted-foreground">{t("heroSubtitle")}</p>
+          <div className="mx-auto mt-8 max-w-2xl text-left">
+            <SearchHero categories={categories} />
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-12">
+        <h2 className="mb-6 font-serif text-2xl">{t("categoriesTitle")}</h2>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {categories.map((c) => (
+            <Link
+              key={c.slug}
+              href={`/${c.slug}`}
+              className="group flex min-h-28 flex-col justify-between rounded-lg border border-border p-5 transition-colors hover:border-foreground/25"
+            >
+              <span className="font-serif text-lg">
+                {locale === "bg" ? c.nameBg : c.nameEn}
+              </span>
+              <span className="mt-2 text-sm tabular-nums text-muted-foreground">
+                {t("listingsCount", { count: c.publishedCount })}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-t border-border">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-12 text-center">
+          <h2 className="font-serif text-2xl">{t("ctaTitle")}</h2>
+          <Button asChild size="lg">
+            <Link href="/profil/dostavchik/obiavi">{t("ctaButton")}</Link>
+          </Button>
+        </div>
+      </section>
+    </main>
+  );
+}

@@ -6,7 +6,15 @@
     "signUp": "Sign up",
     "signOut": "Sign out"
   },
-  "Home": { "title": "All wedding services in one place" },
+  "Home": {
+    "title": "All wedding services in one place",
+    "heroTitle": "All wedding services in one place",
+    "heroSubtitle": "Find photographers, venues, catering and more — all in one place.",
+    "categoriesTitle": "Browse by category",
+    "listingsCount": "{count, plural, one {# listing} other {# listings}}",
+    "ctaTitle": "Offer a wedding service?",
+    "ctaButton": "Publish a listing"
+  },
   "Auth": {
     "email": "Email",
     "password": "Password",
