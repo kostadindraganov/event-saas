@@ -44,6 +44,18 @@
       "hidden": "Hidden",
       "rejected": "Rejected",
       "removed": "Removed"
+    },
+    "wizard": {
+      "osnovni": "Basics",
+      "atributi": "Highlights",
+      "galeria": "Gallery",
+      "paketi": "Packages",
+      "pregled": "Review",
+      "back": "Back",
+      "next": "Next",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved"
     }
   }
 }
