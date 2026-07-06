@@ -4,6 +4,17 @@ import { nextCookies } from "better-auth/next-js";
 import { polar, checkout, portal, webhooks } from "@polar-sh/better-auth";
 import { Polar } from "@polar-sh/sdk";
 import { db } from "@/db";
+import { BillingDAL, type PolarSubscriptionEventPayload } from "@/data/billing/billing.dal";
+
+// Polar е at-least-once; никога не хвърляй тук — webhook route-ът трябва да отговори 200,
+// иначе Polar ще retry-ва безкрайно (upsert-ът е идемпотентен, дублирана доставка е ОК).
+async function handleSubscriptionEvent(raw: unknown): Promise<void> {
+  try {
+    await BillingDAL.projectSubscriptionEvent(raw as PolarSubscriptionEventPayload);
+  } catch (e) {
+    console.error("Polar webhook проекция гръмна", e);
+  }
+}
 
 const hasGoogle = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
@@ -56,10 +67,19 @@ export const auth = betterAuth({
                 authenticatedUsersOnly: true,
               }),
               portal(),
-              // Задача 5 добавя onSubscriptionActive/Updated/Canceled/Revoked тук.
-              webhooks({
-                secret: process.env.POLAR_WEBHOOK_SECRET!,
-              }),
+              // ponytail: webhooks() само при наличен secret — иначе webhooks({secret: undefined})
+              // може да гръмне при startup (partial env: token да, secret не).
+              ...(process.env.POLAR_WEBHOOK_SECRET
+                ? [
+                    webhooks({
+                      secret: process.env.POLAR_WEBHOOK_SECRET,
+                      onSubscriptionActive: (payload) => handleSubscriptionEvent(payload),
+                      onSubscriptionUpdated: (payload) => handleSubscriptionEvent(payload),
+                      onSubscriptionCanceled: (payload) => handleSubscriptionEvent(payload),
+                      onSubscriptionRevoked: (payload) => handleSubscriptionEvent(payload),
+                    }),
+                  ]
+                : []),
             ],
           }),
         ]

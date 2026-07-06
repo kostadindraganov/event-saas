@@ -4,6 +4,57 @@ import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { listing, setting, subscription } from "@/db/schema";
 
+// Тесен локален тип: точната форма на Polar webhook payload-а не е потвърдена в код —
+// пазим само полетата, които реално ползваме, и парсваме defensively.
+export type PolarSubscriptionEventPayload = {
+  customer: { externalId: string | null } | null;
+  data: {
+    id: string;
+    status: string;
+    currentPeriodEnd: string | Date | null;
+    productId: string;
+  };
+};
+
+function mapStatus(s: string): "active" | "past_due" | "canceled" | "revoked" | null {
+  switch (s) {
+    case "active": return "active";
+    case "past_due": return "past_due";
+    case "canceled": return "canceled";
+    case "revoked": return "revoked";
+    default: return null; // непознат Polar status (напр. trialing) — игнорирай defensively
+  }
+}
+
+function mapPlan(productId: string): "standard" | "premium" | null {
+  if (productId === process.env.POLAR_PRODUCT_STANDARD_MONTHLY || productId === process.env.POLAR_PRODUCT_STANDARD_YEARLY) {
+    return "standard";
+  }
+  if (productId === process.env.POLAR_PRODUCT_PREMIUM_MONTHLY || productId === process.env.POLAR_PRODUCT_PREMIUM_YEARLY) {
+    return "premium";
+  }
+  return null;
+}
+
+// Общ helper: скрива ВСИЧКИ published обяви на потребителя (системно, hiddenBySystem=true).
+// Ползва се от projectSubscriptionEvent (revoked/downgrade) И от cron expireGracePeriods (Задача 7).
+export async function hideAllPublished(tx: Transaction, userId: string): Promise<number> {
+  const rows = await tx
+    .update(listing)
+    .set({ status: "hidden", hiddenBySystem: true, updatedAt: new Date() })
+    .where(and(eq(listing.ownerId, userId), eq(listing.status, "published")))
+    .returning({ id: listing.id });
+  return rows.length;
+}
+
+async function countPublished(tx: Transaction, userId: string): Promise<number> {
+  const rows = await tx
+    .select({ id: listing.id })
+    .from(listing)
+    .where(and(eq(listing.ownerId, userId), eq(listing.status, "published")));
+  return rows.length;
+}
+
 // типът на tx вътре в db.transaction(async (tx) => ...) — преизползва се от submit()/unhide() (Задача 3)
 // и от разширенията в Задачи 5/7/8. Каноничното име е `Transaction`.
 export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -73,5 +124,55 @@ export class BillingDAL {
       : await countOwnerPublished(tx, userId, excludeListingId, categoryId);
     const limit = sub.plan === "standard" ? limits.standard : limits.premiumPerCategory;
     if (n >= limit) throw new TRPCError({ code: "FORBIDDEN", message: "LIMIT_REACHED" });
+  }
+
+  // Идемпотентна проекция на Polar subscription webhook → subscription ред (upsert по userId).
+  // Викана от auth.ts webhook handler-ите; те гълтат грешки (Polar retry loop).
+  static async projectSubscriptionEvent(payload: PolarSubscriptionEventPayload): Promise<void> {
+    const userId = payload.customer?.externalId;
+    if (!userId) {
+      console.error("Polar webhook: липсва customer.externalId", payload.data.id);
+      return;
+    }
+    const status = mapStatus(payload.data.status);
+    const plan = mapPlan(payload.data.productId);
+    if (!status || !plan) {
+      console.error("Polar webhook: непознат status/productId", payload.data);
+      return;
+    }
+
+    const { graceDays } = await getBillingSettings();
+    const currentPeriodEnd = payload.data.currentPeriodEnd ? new Date(payload.data.currentPeriodEnd) : null;
+
+    await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ status: subscription.status, plan: subscription.plan, graceUntil: subscription.graceUntil })
+        .from(subscription)
+        .where(eq(subscription.userId, userId));
+
+      const graceUntil =
+        status === "active"
+          ? null
+          : status === "past_due"
+            ? (existing?.graceUntil ?? new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000))
+            : (existing?.graceUntil ?? null);
+
+      await tx
+        .insert(subscription)
+        .values({ userId, polarSubscriptionId: payload.data.id, plan, status, currentPeriodEnd, graceUntil })
+        .onConflictDoUpdate({
+          target: subscription.userId,
+          set: { polarSubscriptionId: payload.data.id, plan, status, currentPeriodEnd, graceUntil, updatedAt: new Date() },
+        });
+
+      if (status === "revoked") {
+        await hideAllPublished(tx, userId);
+      } else if (plan === "standard" && existing?.plan === "premium") {
+        const published = await countPublished(tx, userId);
+        if (published > 1) await hideAllPublished(tx, userId);
+      }
+    });
+
+    // ponytail: email wiring е Задача 6 — тук нарочно няма нотификации.
   }
 }

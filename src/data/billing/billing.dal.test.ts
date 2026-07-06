@@ -1,10 +1,31 @@
-import { afterEach, expect, test } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestUser, cleanupTestUser, createTestSubscription, getTestCityId, testDb } from "@/test/db-helpers";
 import * as schema from "@/db/schema";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import type { SessionUser } from "@/data/users/require-user";
 import { BillingDAL, getBillingSettings } from "./billing.dal";
+
+// POLAR_PRODUCT_* липсват в .env — стъбваме ги, за да мапва mapPlan(productId) в теста.
+beforeAll(() => {
+  vi.stubEnv("POLAR_PRODUCT_STANDARD_MONTHLY", "prod_standard_monthly");
+  vi.stubEnv("POLAR_PRODUCT_STANDARD_YEARLY", "prod_standard_yearly");
+  vi.stubEnv("POLAR_PRODUCT_PREMIUM_MONTHLY", "prod_premium_monthly");
+  vi.stubEnv("POLAR_PRODUCT_PREMIUM_YEARLY", "prod_premium_yearly");
+});
+afterAll(() => vi.unstubAllEnvs());
+
+function payload(userId: string, opts: { status: string; productId: string }) {
+  return {
+    customer: { externalId: userId },
+    data: {
+      id: `sub_${userId}`,
+      status: opts.status,
+      currentPeriodEnd: "2026-08-06T00:00:00.000Z",
+      productId: opts.productId,
+    },
+  };
+}
 
 let cleanupIds: string[] = [];
 afterEach(async () => {
@@ -91,4 +112,66 @@ test("past_due в гратис → минава; изтекъл гратис →
   await createTestSubscription(id, { plan: "standard", status: "past_due", graceUntil: past });
   const b = await ListingDAL.for(user).createDraft({ title: "Изтекъл Гратис Тест", categoryId: categoryA!, cityId });
   await expect(checkPublish(id, categoryA!, b.id)).rejects.toMatchObject({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
+});
+
+test("projectSubscriptionEvent: active → upsert; повторен същия payload → 1 ред (идемпотентно)", async () => {
+  const { id } = await newOwner();
+  const p = payload(id, { status: "active", productId: "prod_standard_monthly" });
+  await BillingDAL.projectSubscriptionEvent(p);
+  await BillingDAL.projectSubscriptionEvent(p);
+  const rows = await testDb.select().from(schema.subscription).where(eq(schema.subscription.userId, id));
+  expect(rows.length).toBe(1);
+  expect(rows[0]?.status).toBe("active");
+  expect(rows[0]?.plan).toBe("standard");
+  expect(rows[0]?.graceUntil).toBeNull();
+});
+
+test("projectSubscriptionEvent: active → past_due сетва graceUntil; повторен past_due НЕ го мести (set-once); active чисти", async () => {
+  const { id } = await newOwner();
+  await BillingDAL.projectSubscriptionEvent(payload(id, { status: "active", productId: "prod_standard_monthly" }));
+  await BillingDAL.projectSubscriptionEvent(payload(id, { status: "past_due", productId: "prod_standard_monthly" }));
+  const [first] = await testDb.select().from(schema.subscription).where(eq(schema.subscription.userId, id));
+  expect(first?.status).toBe("past_due");
+  expect(first?.graceUntil).not.toBeNull();
+  const firstGrace = first?.graceUntil;
+
+  await BillingDAL.projectSubscriptionEvent(payload(id, { status: "past_due", productId: "prod_standard_monthly" }));
+  const [second] = await testDb.select().from(schema.subscription).where(eq(schema.subscription.userId, id));
+  expect(second?.graceUntil?.getTime()).toBe(firstGrace?.getTime());
+
+  await BillingDAL.projectSubscriptionEvent(payload(id, { status: "active", productId: "prod_standard_monthly" }));
+  const [cleared] = await testDb.select().from(schema.subscription).where(eq(schema.subscription.userId, id));
+  expect(cleared?.graceUntil).toBeNull();
+});
+
+test("projectSubscriptionEvent: revoked → скрива всички published обяви (hiddenBySystem)", async () => {
+  const { user, id } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  await BillingDAL.projectSubscriptionEvent(payload(id, { status: "active", productId: "prod_standard_monthly" }));
+  const lid = await publishedListing(user, categoryA!, cityId, "Скрий При Revoke");
+
+  await BillingDAL.projectSubscriptionEvent(payload(id, { status: "revoked", productId: "prod_standard_monthly" }));
+
+  const [row] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, lid));
+  expect(row?.status).toBe("hidden");
+  expect(row?.hiddenBySystem).toBe(true);
+});
+
+test("projectSubscriptionEvent: downgrade premium→standard с >1 published → скрива всички", async () => {
+  const { user, id } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  await createTestSubscription(id, { plan: "premium", status: "active" });
+  const a = await publishedListing(user, categoryA!, cityId, "Downgrade А");
+  const b = await publishedListing(user, categoryA!, cityId, "Downgrade Б");
+
+  await BillingDAL.projectSubscriptionEvent(payload(id, { status: "active", productId: "prod_standard_monthly" }));
+
+  const [rowA] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, a));
+  const [rowB] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, b));
+  expect(rowA?.status).toBe("hidden");
+  expect(rowA?.hiddenBySystem).toBe(true);
+  expect(rowB?.status).toBe("hidden");
+  expect(rowB?.hiddenBySystem).toBe(true);
 });
