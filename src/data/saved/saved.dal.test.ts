@@ -38,6 +38,13 @@ test("toggle: двупосочно (insert → saved:true, повторно → 
   expect(await dal.toggle(publishedId)).toEqual({ saved: false });
 });
 
+test("toggle: несъществуващ listingId → NOT_FOUND (не raw FK грешка)", async () => {
+  const dal = SavedDAL.for(me);
+  await expect(dal.toggle("00000000-0000-0000-0000-000000000000")).rejects.toMatchObject({
+    code: "NOT_FOUND",
+  });
+});
+
 test("list връща само published + моите; ids съдържа toggle-натите", async () => {
   const dal = SavedDAL.for(me);
   await dal.toggle(publishedId); // saved

@@ -1,4 +1,5 @@
 import "server-only";
+import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { category, city, listing, listingImage, savedListing } from "@/db/schema";
@@ -15,11 +16,22 @@ export class SavedDAL {
   }
 
   async toggle(listingId: string): Promise<ToggleSavedResult> {
-    const inserted = await db
-      .insert(savedListing)
-      .values({ userId: this.user.id, listingId })
-      .onConflictDoNothing()
-      .returning({ listingId: savedListing.listingId });
+    let inserted: { listingId: string }[];
+    try {
+      inserted = await db
+        .insert(savedListing)
+        .values({ userId: this.user.id, listingId })
+        .onConflictDoNothing()
+        .returning({ listingId: savedListing.listingId });
+    } catch (err) {
+      // ponytail: FK violation → неизвестна обява, не изтичаме Postgres детайли към клиента
+      // drizzle-orm/neon-serverless обвива pg грешката: реалният код е в err.cause.code
+      const code = (err as { code?: string; cause?: { code?: string } })?.cause?.code;
+      if (code === "23503") {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      throw err;
+    }
     if (inserted.length > 0) return { saved: true };
     await db
       .delete(savedListing)
