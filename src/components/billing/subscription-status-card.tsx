@@ -25,10 +25,13 @@ export function SubscriptionStatusCard({
   const router = useRouter();
   const [restoreError, setRestoreError] = useState<RestoreErrorKey | null>(null);
   // standard + >1 system-hidden → picker-ът е задължителен веднага (contract р.11); premium
-  // over-limit случаят се разкрива само след LIMIT_REACHED от restore (виж onError по-долу).
-  const [showPicker, setShowPicker] = useState(
-    subscription?.plan === "standard" && systemHidden.length > 1,
-  );
+  // over-limit случаят се разкрива само след LIMIT_REACHED от restore (sticky флаг, onError).
+  // Derived от props (не stored state): след keepListing → router.refresh() systemHidden
+  // се опреснява и picker-ът изчезва; при length === 0 никога не се рендерира.
+  const [limitReached, setLimitReached] = useState(false);
+  const showPicker =
+    systemHidden.length > 0 &&
+    (limitReached || (subscription?.plan === "standard" && systemHidden.length > 1));
 
   const restore = useMutation(
     trpc.billing.restoreListings.mutationOptions({
@@ -36,7 +39,7 @@ export function SubscriptionStatusCard({
       onError: (err) => {
         if (err.data?.code === "FORBIDDEN" && err.message === "LIMIT_REACHED") {
           setRestoreError("limitReached");
-          setShowPicker(true);
+          setLimitReached(true);
         } else {
           setRestoreError("generic");
         }
