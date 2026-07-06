@@ -36,6 +36,7 @@
     "citySearchPlaceholder": "Start typing a city…",
     "create": "Create draft",
     "creating": "Creating…",
+    "errorCreate": "Something went wrong while creating. Please try again.",
     "status": {
       "draft": "Draft",
       "pending_approval": "Pending approval",

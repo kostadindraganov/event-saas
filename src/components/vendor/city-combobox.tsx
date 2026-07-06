@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useTRPC } from "@/trpc/client";
@@ -18,13 +18,23 @@ export function CityCombobox({
   const trpc = useTRPC();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const { data: hits } = useQuery({
     ...trpc.catalog.location.searchCities.queryOptions({ query }),
     enabled: query.length >= 1,
   });
 
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
+
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <Input
         value={open ? query : (value ? `${value.name} (${value.regionName})` : query)}
         placeholder={t("citySearchPlaceholder")}

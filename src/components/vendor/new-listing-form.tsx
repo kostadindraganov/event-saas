@@ -21,10 +21,12 @@ export function NewListingForm() {
   const [categoryId, setCategoryId] = useState("");
   const [city, setCity] = useState<CityOption | null>(null);
 
+  const [error, setError] = useState(false);
   const { data: categories } = useQuery(trpc.catalog.category.list.queryOptions());
   const createDraft = useMutation(
     trpc.catalog.listing.createDraft.mutationOptions({
       onSuccess: (listing) => router.push(`/profil/dostavchik/obiavi/${listing.id}`),
+      onError: () => setError(true),
     }),
   );
 
@@ -35,6 +37,7 @@ export function NewListingForm() {
       className="max-w-lg space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
+        setError(false);
         if (!valid || !city) return;
         createDraft.mutate({ title: title.trim(), categoryId, cityId: city.id });
       }}
@@ -62,6 +65,7 @@ export function NewListingForm() {
         <Label>{t("fieldCity")}</Label>
         <CityCombobox value={city} onChange={setCity} />
       </div>
+      {error && <p role="alert" className="text-sm text-destructive">{t("errorCreate")}</p>}
       <Button type="submit" disabled={!valid || createDraft.isPending}>
         {createDraft.isPending ? t("creating") : t("create")}
       </Button>

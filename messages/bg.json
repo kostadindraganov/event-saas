@@ -36,6 +36,7 @@
     "citySearchPlaceholder": "Започни да пишеш град…",
     "create": "Създай чернова",
     "creating": "Създаване…",
+    "errorCreate": "Възникна грешка при създаването. Опитайте отново.",
     "status": {
       "draft": "Чернова",
       "pending_approval": "Чака одобрение",
