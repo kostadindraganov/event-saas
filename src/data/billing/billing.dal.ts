@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, eq, inArray, ne } from "drizzle-orm";
+import { and, count, eq, inArray, lt, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { listing, setting, subscription, user } from "@/db/schema";
@@ -203,5 +203,28 @@ export class BillingDAL {
     if (result.hiddenCount > 0) {
       void notifyListingsHiddenEmail(userId, result.hiddenCount).catch((e) => console.error("email failed", e));
     }
+  }
+
+  // Cron: изтекъл гратис (past_due + graceUntil < now) → скрива published обявите на потребителя.
+  // Идемпотентно (hideAllPublished филтрира WHERE status='published'); грешка на един потребител
+  // не блокира batch-а (отделна транзакция per-user).
+  static async expireGracePeriods(): Promise<{ hidden: number; users: string[] }> {
+    const now = new Date();
+    const expired = await db
+      .select({ userId: subscription.userId })
+      .from(subscription)
+      .where(and(eq(subscription.status, "past_due"), lt(subscription.graceUntil, now)));
+
+    let hidden = 0;
+    const users: string[] = [];
+    for (const { userId } of expired) {
+      const count = await db.transaction((tx) => hideAllPublished(tx, userId));
+      if (count > 0) {
+        hidden += count;
+        users.push(userId);
+        void notifyListingsHiddenEmail(userId, count).catch((e) => console.error("email failed", e));
+      }
+    }
+    return { hidden, users };
   }
 }

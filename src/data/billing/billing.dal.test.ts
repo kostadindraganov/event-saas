@@ -175,3 +175,35 @@ test("projectSubscriptionEvent: downgrade premium→standard с >1 published →
   expect(rowB?.status).toBe("hidden");
   expect(rowB?.hiddenBySystem).toBe(true);
 });
+
+test("expireGracePeriods: изтекъл гратис → скрива и включва потребителя в users[]; активен статус е незасегнат; повторен run → 0 hidden (идемпотентно)", async () => {
+  const expiredOwner = await newOwner();
+  const activeOwner = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+
+  await createTestSubscription(expiredOwner.id, {
+    plan: "standard",
+    status: "past_due",
+    graceUntil: new Date(Date.now() - 24 * 60 * 60 * 1000),
+  });
+  const expiredListing = await publishedListing(expiredOwner.user, categoryA!, cityId, "DAL Изтекъл Гратис");
+
+  await createTestSubscription(activeOwner.id, { plan: "standard", status: "active" });
+  const activeListing = await publishedListing(activeOwner.user, categoryA!, cityId, "DAL Активен");
+
+  const result = await BillingDAL.expireGracePeriods();
+  expect(result.hidden).toBeGreaterThanOrEqual(1);
+  expect(result.users).toContain(expiredOwner.id);
+  expect(result.users).not.toContain(activeOwner.id);
+
+  const [rowExpired] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, expiredListing));
+  expect(rowExpired?.status).toBe("hidden");
+  expect(rowExpired?.hiddenBySystem).toBe(true);
+  const [rowActive] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, activeListing));
+  expect(rowActive?.status).toBe("published");
+
+  // повторен run между два реда не удвоява скриването (hideAllPublished филтрира WHERE status='published')
+  const second = await BillingDAL.expireGracePeriods();
+  expect(second.users).not.toContain(expiredOwner.id);
+});
