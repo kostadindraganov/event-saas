@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { createTestUser, cleanupTestUser, getTestCategoryId, getTestCityId } from "@/test/db-helpers";
+import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId } from "@/test/db-helpers";
 import { ListingDAL } from "./listing.dal";
 import type { SessionUser } from "@/data/users/require-user";
 
@@ -16,6 +16,8 @@ beforeAll(async () => {
   stranger = { id: u2.id, email: u2.email, name: "Друг", isAdmin: false };
   categoryId = await getTestCategoryId();
   cityId = await getTestCityId();
+  // submit()/unhide() вече изискват активен план (Задача 3) — този файл публикува точно 1 обява за owner → standard стига
+  await createTestSubscription(ownerId, { plan: "standard", status: "active" });
 });
 
 afterAll(async () => {

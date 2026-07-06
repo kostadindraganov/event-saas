@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db";
 import { listing, listingServiceRegion } from "@/db/schema";
 import { slugifyBg } from "@/lib/slug";
@@ -7,6 +7,7 @@ import type { SessionUser } from "@/data/users/require-user";
 import { canCreateListing, canEditListing, canSubmitListing } from "./catalog.policy";
 import type { ListingCreateInput, ListingDTO, ListingSummaryDTO, ListingUpdateInput } from "./catalog.dto";
 import { PublicListingDAL } from "./public-listing.dal";
+import { BillingDAL } from "@/data/billing/billing.dal";
 
 type ListingRow = typeof listing.$inferSelect;
 
@@ -97,13 +98,30 @@ export class ListingDAL {
   async submit(id: string): Promise<ListingDTO> {
     const row = await this.ownedRow(id);
     if (!canSubmitListing(this.user, row)) throw new Error("FORBIDDEN");
+    const userId = this.user.id;
     // ponytail: Ф1 публикува директно; pending_approval gate идва с админ панела (Ф2)
-    const [updated] = await db
-      .update(listing)
-      .set({ status: "published", publishedAt: new Date(), rejectionReason: null, updatedAt: new Date() })
-      .where(eq(listing.id, id))
-      .returning();
-    if (!updated) throw new Error("NOT_FOUND");
+    // транзакция: entitlement guard + CAS UPDATE атомарно (затваря TOCTOU при конкурентен submit)
+    const updated = await db.transaction(async (tx) => {
+      const [fresh] = await tx
+        .select({ categoryId: listing.categoryId, status: listing.status })
+        .from(listing)
+        .where(eq(listing.id, id));
+      if (!fresh || (fresh.status !== "draft" && fresh.status !== "rejected")) throw new Error("FORBIDDEN");
+      await BillingDAL.assertCanPublish(tx, userId, fresh.categoryId, id);
+      const [updatedRow] = await tx
+        .update(listing)
+        .set({
+          status: "published",
+          publishedAt: new Date(),
+          rejectionReason: null,
+          hiddenBySystem: false,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(listing.id, id), or(eq(listing.status, "draft"), eq(listing.status, "rejected"))))
+        .returning();
+      if (!updatedRow) throw new Error("FORBIDDEN"); // CAS изгубена — статусът се е сменил конкурентно
+      return updatedRow;
+    });
     return toDTO(updated, await this.regionIds(id));
   }
 
@@ -123,8 +141,27 @@ export class ListingDAL {
     return this.setStatus(id, "published", "hidden");
   }
 
-  unhide(id: string) {
-    return this.setStatus(id, "hidden", "published");
+  async unhide(id: string): Promise<ListingDTO> {
+    const row = await this.ownedRow(id);
+    if (row.status !== "hidden") throw new Error("FORBIDDEN");
+    const userId = this.user.id;
+    // транзакция: entitlement guard + CAS UPDATE атомарно (иначе hide→unhide заобикаля лимита от submit())
+    const updated = await db.transaction(async (tx) => {
+      const [fresh] = await tx
+        .select({ categoryId: listing.categoryId, status: listing.status })
+        .from(listing)
+        .where(eq(listing.id, id));
+      if (!fresh || fresh.status !== "hidden") throw new Error("FORBIDDEN");
+      await BillingDAL.assertCanPublish(tx, userId, fresh.categoryId, id);
+      const [updatedRow] = await tx
+        .update(listing)
+        .set({ status: "published", hiddenBySystem: false, updatedAt: new Date() })
+        .where(and(eq(listing.id, id), eq(listing.status, "hidden")))
+        .returning();
+      if (!updatedRow) throw new Error("FORBIDDEN"); // CAS изгубена
+      return updatedRow;
+    });
+    return toDTO(updated, await this.regionIds(id));
   }
 
   async listMine(): Promise<ListingSummaryDTO[]> {
