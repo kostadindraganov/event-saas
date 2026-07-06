@@ -3,7 +3,8 @@ import { createTRPCRouter, publicProcedure, protectedProcedure } from "../init";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import { TaxonomyDAL } from "@/data/catalog/taxonomy.dal";
 import { AttributeDAL } from "@/data/catalog/attribute.dal";
-import { ListingCreateInputSchema, ListingUpdateInputSchema } from "@/data/catalog/catalog.dto";
+import { PackageDAL, VideoDAL } from "@/data/catalog/package.dal";
+import { ListingCreateInputSchema, ListingUpdateInputSchema, PackageInputSchema } from "@/data/catalog/catalog.dto";
 import { SetAttributeValuesInputSchema } from "@/data/catalog/attribute.dto";
 
 const byId = z.object({ id: z.uuid() });
@@ -41,5 +42,24 @@ export const catalogRouter = createTRPCRouter({
     getValues: protectedProcedure
       .input(z.object({ listingId: z.uuid() }))
       .query(({ ctx, input }) => AttributeDAL.for(ctx.user).getValues(input.listingId)),
+  }),
+  package: createTRPCRouter({
+    create: protectedProcedure.input(PackageInputSchema).mutation(({ ctx, input }) => PackageDAL.for(ctx.user).create(input)),
+    update: protectedProcedure
+      .input(PackageInputSchema.partial().omit({ listingId: true }).extend({ id: z.uuid() }))
+      .mutation(({ ctx, input }) => PackageDAL.for(ctx.user).update(input)),
+    remove: protectedProcedure.input(byId).mutation(({ ctx, input }) => PackageDAL.for(ctx.user).remove(input.id)),
+    listByListing: protectedProcedure
+      .input(z.object({ listingId: z.uuid() }))
+      .query(({ ctx, input }) => PackageDAL.for(ctx.user).listByListing(input.listingId)),
+  }),
+  video: createTRPCRouter({
+    add: protectedProcedure
+      .input(z.object({ listingId: z.uuid(), url: z.url() }))
+      .mutation(({ ctx, input }) => VideoDAL.for(ctx.user).add(input.listingId, input.url)),
+    remove: protectedProcedure.input(byId).mutation(({ ctx, input }) => VideoDAL.for(ctx.user).remove(input.id)),
+    listByListing: protectedProcedure
+      .input(z.object({ listingId: z.uuid() }))
+      .query(({ ctx, input }) => VideoDAL.for(ctx.user).listByListing(input.listingId)),
   }),
 });
