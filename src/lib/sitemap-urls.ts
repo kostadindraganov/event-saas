@@ -8,7 +8,8 @@ export function localizedSitemapEntry(
 ): MetadataRoute.Sitemap[number] {
   const urls = buildLocalizedUrls(href);
   return {
-    url: urls[routing.defaultLocale],
+    // noUncheckedIndexedAccess: safe — urls is populated for every routing.locales entry above.
+    url: urls[routing.defaultLocale]!,
     lastModified,
     alternates: { languages: urls },
   };
