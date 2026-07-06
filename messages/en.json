@@ -20,5 +20,22 @@
     "errorEmail": "Enter a valid email",
     "errorPassword": "Password must be at least 8 characters",
     "errorName": "Name must be at least 2 characters"
+  },
+  "Vendor": {
+    "myListings": "My listings",
+    "newListing": "New listing",
+    "noListings": "No listings yet. Create your first one.",
+    "edit": "Edit",
+    "hide": "Unpublish",
+    "unhide": "Publish again",
+    "priceFrom": "from {price}",
+    "status": {
+      "draft": "Draft",
+      "pending_approval": "Pending approval",
+      "published": "Published",
+      "hidden": "Hidden",
+      "rejected": "Rejected",
+      "removed": "Removed"
+    }
   }
 }

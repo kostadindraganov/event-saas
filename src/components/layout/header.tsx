@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export function Header() {
   const t = useTranslations("Common");
+  const tVendor = useTranslations("Vendor");
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
@@ -26,9 +27,14 @@ export function Header() {
             {locale === "bg" ? "EN" : "БГ"}
           </Button>
           {session ? (
-            <Button variant="outline" size="sm" onClick={() => authClient.signOut()}>
-              {t("signOut")}
-            </Button>
+            <>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/profil/dostavchik/obiavi">{tVendor("myListings")}</Link>
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => authClient.signOut()}>
+                {t("signOut")}
+              </Button>
+            </>
           ) : (
             <Button asChild size="sm">
               <Link href="/vhod">{t("signIn")}</Link>
