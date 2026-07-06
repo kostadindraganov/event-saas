@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { revalidateTag } from "next/cache";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../init";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import { TaxonomyDAL } from "@/data/catalog/taxonomy.dal";
@@ -16,10 +17,30 @@ export const catalogRouter = createTRPCRouter({
       .mutation(({ ctx, input }) => ListingDAL.for(ctx.user).createDraft(input)),
     update: protectedProcedure
       .input(ListingUpdateInputSchema)
-      .mutation(({ ctx, input }) => ListingDAL.for(ctx.user).update(input)),
-    submit: protectedProcedure.input(byId).mutation(({ ctx, input }) => ListingDAL.for(ctx.user).submit(input.id)),
-    hide: protectedProcedure.input(byId).mutation(({ ctx, input }) => ListingDAL.for(ctx.user).hide(input.id)),
-    unhide: protectedProcedure.input(byId).mutation(({ ctx, input }) => ListingDAL.for(ctx.user).unhide(input.id)),
+      .mutation(async ({ ctx, input }) => {
+        const r = await ListingDAL.for(ctx.user).update(input);
+        revalidateTag("listings", "max");
+        revalidateTag(`listing:${r.slug}`, "max");
+        return r;
+      }),
+    submit: protectedProcedure.input(byId).mutation(async ({ ctx, input }) => {
+      const r = await ListingDAL.for(ctx.user).submit(input.id);
+      revalidateTag("listings", "max");
+      revalidateTag(`listing:${r.slug}`, "max");
+      return r;
+    }),
+    hide: protectedProcedure.input(byId).mutation(async ({ ctx, input }) => {
+      const r = await ListingDAL.for(ctx.user).hide(input.id);
+      revalidateTag("listings", "max");
+      revalidateTag(`listing:${r.slug}`, "max");
+      return r;
+    }),
+    unhide: protectedProcedure.input(byId).mutation(async ({ ctx, input }) => {
+      const r = await ListingDAL.for(ctx.user).unhide(input.id);
+      revalidateTag("listings", "max");
+      revalidateTag(`listing:${r.slug}`, "max");
+      return r;
+    }),
     listMine: protectedProcedure.query(({ ctx }) => ListingDAL.for(ctx.user).listMine()),
     getForOwner: protectedProcedure.input(byId).query(({ ctx, input }) => ListingDAL.for(ctx.user).getForOwner(input.id)),
   }),

@@ -1,9 +1,13 @@
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { appRouter } from "./_app";
 import { createCallerFactory } from "../init";
 import { createTestUser, cleanupTestUser, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
 import * as schema from "@/db/schema";
+
+// ponytail: revalidateTag извън заявка/render хвърля "static generation store missing";
+// мутациите в теста работят извън Next request контекст, затова mock-ваме no-op.
+vi.mock("next/cache", () => ({ revalidateTag: () => {} }));
 
 const createCaller = createCallerFactory(appRouter);
 let userId: string;
