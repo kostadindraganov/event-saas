@@ -2,6 +2,7 @@ import Image from "next/image";
 import { getTranslations } from "next-intl/server";
 import { Star } from "lucide-react";
 import { Link } from "@/i18n/navigation";
+import { SaveButton } from "@/components/saved/save-button";
 import { cfImageUrl } from "@/lib/cf-image-url";
 import { formatEuro } from "@/lib/money";
 import type { PublicListingCardDTO } from "@/data/catalog/public.dto";
@@ -33,6 +34,9 @@ export async function ListingCard({
             className="object-cover"
           />
         )}
+        <div className="absolute left-2 top-2 z-10">
+          <SaveButton listingId={listing.id} />
+        </div>
         {listing.reviewCount > 0 && listing.ratingAvg !== null && (
           <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-xs font-medium tabular-nums backdrop-blur">
             <Star className="size-3.5 fill-accent-gold text-accent-gold" />

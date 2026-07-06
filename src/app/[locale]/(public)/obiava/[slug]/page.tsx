@@ -5,6 +5,7 @@ import { Star } from "lucide-react";
 import { cachedListingBySlug } from "@/data/catalog/public-cached";
 import { Badge } from "@/components/ui/badge";
 import { JsonLd } from "@/components/catalog/json-ld";
+import { SaveButton } from "@/components/saved/save-button";
 import { ListingGallery } from "@/components/catalog/listing-gallery";
 import { PackageCard } from "@/components/catalog/package-card";
 import { cfImageUrl } from "@/lib/cf-image-url";
@@ -69,7 +70,10 @@ export default async function ListingPage({
           {categoryName}
           {location && ` · ${location}`}
         </p>
-        <h1 className="mt-1 font-serif text-4xl">{listing.title}</h1>
+        <div className="mt-1 flex items-start justify-between gap-4">
+          <h1 className="font-serif text-4xl">{listing.title}</h1>
+          <SaveButton listingId={listing.id} />
+        </div>
         {listing.reviewCount > 0 && listing.ratingAvg !== null && (
           <span className="mt-2 inline-flex items-center gap-1 text-sm tabular-nums">
             <Star className="size-4 fill-accent-gold text-accent-gold" />
