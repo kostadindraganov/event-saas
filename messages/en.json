@@ -29,6 +29,13 @@
     "hide": "Unpublish",
     "unhide": "Publish again",
     "priceFrom": "from {price}",
+    "createTitle": "New listing",
+    "fieldTitle": "Listing title",
+    "fieldCategory": "Category",
+    "fieldCity": "City",
+    "citySearchPlaceholder": "Start typing a city…",
+    "create": "Create draft",
+    "creating": "Creating…",
     "status": {
       "draft": "Draft",
       "pending_approval": "Pending approval",

@@ -29,6 +29,13 @@
     "hide": "Свали от публикация",
     "unhide": "Публикувай отново",
     "priceFrom": "от {price}",
+    "createTitle": "Нова обява",
+    "fieldTitle": "Заглавие на обявата",
+    "fieldCategory": "Категория",
+    "fieldCity": "Град",
+    "citySearchPlaceholder": "Започни да пишеш град…",
+    "create": "Създай чернова",
+    "creating": "Създаване…",
     "status": {
       "draft": "Чернова",
       "pending_approval": "Чака одобрение",
