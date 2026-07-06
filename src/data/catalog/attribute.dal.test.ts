@@ -7,13 +7,17 @@ import { AttributeDAL } from "./attribute.dal";
 import type { SessionUser } from "@/data/users/require-user";
 
 let owner: SessionUser;
-let ownerId: string, listingId: string, categoryId: string;
+let stranger: SessionUser;
+let ownerId: string, strangerId: string, listingId: string, categoryId: string;
 let boolDefId: string, multiDefId: string, numberDefId: string;
 
 beforeAll(async () => {
   const u = await createTestUser();
+  const u2 = await createTestUser();
   ownerId = u.id;
+  strangerId = u2.id;
   owner = { id: u.id, email: u.email, name: "Тест", isAdmin: false };
+  stranger = { id: u2.id, email: u2.email, name: "Друг", isAdmin: false };
   // категория с гарантирани дефиниции: fotografi (second_shooter boolean, style multi)
   const [cat] = await testDb.select().from(schema.category).where(eq(schema.category.slug, "fotografi"));
   categoryId = cat!.id;
@@ -25,7 +29,10 @@ beforeAll(async () => {
   listingId = listing.id;
 });
 
-afterAll(async () => cleanupTestUser(ownerId));
+afterAll(async () => {
+  await cleanupTestUser(ownerId);
+  await cleanupTestUser(strangerId);
+});
 
 test("definitionsByCategory връща seed-натите за fotografi", async () => {
   const defs = await AttributeDAL.public().definitionsByCategory(categoryId);
@@ -68,4 +75,22 @@ test("setValues: number — валидно 5, невалидни -1 и NaN", asy
   await expect(
     dal.setValues(listingId, [{ definitionId: numberDefId, value: Number.NaN }]),
   ).rejects.toThrow("INVALID_ATTRIBUTE_VALUE");
+});
+
+test("getValues: чужд потребител → FORBIDDEN", async () => {
+  await expect(AttributeDAL.for(stranger).getValues(listingId)).rejects.toThrow("FORBIDDEN");
+});
+
+test("setValues: дублиран definitionId → INVALID_ATTRIBUTE_VALUE, старите стойности оцеляват", async () => {
+  const dal = AttributeDAL.for(owner);
+  await dal.setValues(listingId, [{ definitionId: boolDefId, value: true }]);
+  await expect(
+    dal.setValues(listingId, [
+      { definitionId: multiDefId, value: ["classic"] },
+      { definitionId: multiDefId, value: ["artistic"] },
+    ]),
+  ).rejects.toThrow("INVALID_ATTRIBUTE_VALUE");
+  const values = await dal.getValues(listingId);
+  expect(values).toHaveLength(1);
+  expect(values.find((v) => v.definitionId === boolDefId)?.value).toBe(true);
 });

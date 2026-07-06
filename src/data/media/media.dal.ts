@@ -21,14 +21,14 @@ export class MediaDAL {
 
   async requestUpload(listingId: string) {
     await assertOwned(this.user, listingId);
-    const existing = await this.listByListing(listingId);
+    const existing = await this.listRows(listingId);
     if (existing.length >= MAX_IMAGES) throw new Error("IMAGE_LIMIT");
     return requestDirectUpload();
   }
 
   async confirm(listingId: string, cfImageId: string) {
     await assertOwned(this.user, listingId);
-    const existing = await this.listByListing(listingId);
+    const existing = await this.listRows(listingId);
     if (existing.length >= MAX_IMAGES) throw new Error("IMAGE_LIMIT");
     const [row] = await db
       .insert(listingImage)
@@ -60,6 +60,11 @@ export class MediaDAL {
   }
 
   async listByListing(listingId: string) {
+    await assertOwned(this.user, listingId);
+    return this.listRows(listingId);
+  }
+
+  private async listRows(listingId: string) {
     return db
       .select()
       .from(listingImage)

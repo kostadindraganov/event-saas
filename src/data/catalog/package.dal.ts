@@ -62,6 +62,7 @@ export class PackageDAL {
   }
 
   async listByListing(listingId: string): Promise<PackageDTO[]> {
+    await assertOwned(this.user, listingId);
     const rows = await db
       .select().from(servicePackage)
       .where(eq(servicePackage.listingId, listingId))
@@ -92,6 +93,7 @@ export class VideoDAL {
   }
 
   async listByListing(listingId: string) {
+    await assertOwned(this.user, listingId);
     return db.select().from(listingVideo).where(eq(listingVideo.listingId, listingId)).orderBy(asc(listingVideo.sortOrder));
   }
 }

@@ -54,6 +54,10 @@ export class AttributeDAL {
       validateValue(def, v.value);
     }
 
+    if (new Set(values.map((v) => v.definitionId)).size !== values.length) {
+      throw new Error("INVALID_ATTRIBUTE_VALUE");
+    }
+
     await db.delete(listingAttribute).where(eq(listingAttribute.listingId, listingId));
     if (values.length > 0) {
       await db.insert(listingAttribute).values(
@@ -63,6 +67,11 @@ export class AttributeDAL {
   }
 
   async getValues(listingId: string): Promise<{ definitionId: string; value: unknown }[]> {
+    if (!this.user) throw new Error("FORBIDDEN");
+    const [row] = await db.select().from(listing).where(eq(listing.id, listingId));
+    if (!row) throw new Error("NOT_FOUND");
+    if (!canEditListing(this.user, row)) throw new Error("FORBIDDEN");
+
     const rows = await db
       .select({ definitionId: listingAttribute.attributeDefinitionId, value: listingAttribute.value })
       .from(listingAttribute)
