@@ -6,11 +6,12 @@ import { TaxonomyDAL } from "@/data/catalog/taxonomy.dal";
 import { AttributeDAL } from "@/data/catalog/attribute.dal";
 import { cachedListingList } from "@/data/catalog/public-cached";
 import { parseListParams } from "@/lib/catalog-search-params";
+import { JsonLd } from "@/components/catalog/json-ld";
 import { ListingGrid } from "@/components/catalog/listing-grid";
 import { CatalogSort } from "@/components/catalog/catalog-sort";
 import { CatalogPagination } from "@/components/catalog/catalog-pagination";
 import { FiltersPanel, type FilterState } from "@/components/catalog/filters-panel";
-import { publicMetadata } from "@/lib/seo";
+import { buildLocalizedUrls, publicMetadata } from "@/lib/seo";
 
 type Props = {
   params: Promise<{ locale: string; category: string }>;
@@ -76,8 +77,28 @@ export default async function CategoryPage({
   const t = await getTranslations("Catalog");
   const categoryName = locale === "bg" ? category.nameBg : category.nameEn;
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: locale === "en" ? "Home" : "Начало",
+        item: buildLocalizedUrls({ pathname: "/" })[locale],
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: categoryName,
+        item: buildLocalizedUrls({ pathname: "/[category]", params: { category: category.slug } })[locale],
+      },
+    ],
+  };
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
+      <JsonLd data={breadcrumbJsonLd} />
       <nav className="mb-3 text-sm text-muted-foreground">
         <Link href="/" className="hover:text-foreground">
           {t("breadcrumbHome")}

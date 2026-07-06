@@ -4,11 +4,13 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Star } from "lucide-react";
 import { cachedListingBySlug } from "@/data/catalog/public-cached";
 import { Badge } from "@/components/ui/badge";
+import { JsonLd } from "@/components/catalog/json-ld";
 import { ListingGallery } from "@/components/catalog/listing-gallery";
 import { PackageCard } from "@/components/catalog/package-card";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import { cfImageUrl } from "@/lib/cf-image-url";
-import { publicMetadata } from "@/lib/seo";
+import { formatEuro } from "@/lib/money";
+import { buildLocalizedUrls, publicMetadata } from "@/lib/seo";
 
 type Props = { params: Promise<{ locale: string; slug: string }> };
 
@@ -44,8 +46,25 @@ export default async function ListingPage({
   const categoryName = locale === "bg" ? listing.categoryNameBg : listing.categoryNameEn;
   const location = listing.wholeCountry ? t("wholeCountry") : listing.cityName ?? "";
 
+  const canonical = buildLocalizedUrls({
+    pathname: "/obiava/[slug]",
+    params: { slug: listing.slug },
+  })[locale];
+  const coverImage = listing.coverCfImageId ? cfImageUrl(listing.coverCfImageId) : null;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    name: listing.title,
+    description: listing.description,
+    url: canonical,
+    ...(coverImage ? { image: coverImage } : {}),
+    ...(listing.cityName ? { address: { "@type": "PostalAddress", addressLocality: listing.cityName } } : {}),
+    ...(listing.priceFromCents != null ? { priceRange: formatEuro(listing.priceFromCents) } : {}),
+  };
+
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
+      <JsonLd data={jsonLd} />
       <header className="mb-6">
         <p className="text-sm text-muted-foreground">
           {categoryName}
