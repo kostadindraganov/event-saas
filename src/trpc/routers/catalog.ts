@@ -2,7 +2,9 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../init";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import { TaxonomyDAL } from "@/data/catalog/taxonomy.dal";
+import { AttributeDAL } from "@/data/catalog/attribute.dal";
 import { ListingCreateInputSchema, ListingUpdateInputSchema } from "@/data/catalog/catalog.dto";
+import { SetAttributeValuesInputSchema } from "@/data/catalog/attribute.dto";
 
 const byId = z.object({ id: z.uuid() });
 
@@ -28,5 +30,16 @@ export const catalogRouter = createTRPCRouter({
     searchCities: publicProcedure
       .input(z.object({ query: z.string().min(1).max(60) }))
       .query(({ input }) => TaxonomyDAL.public().searchCities(input.query)),
+  }),
+  attribute: createTRPCRouter({
+    definitionsByCategory: publicProcedure
+      .input(z.object({ categoryId: z.uuid() }))
+      .query(({ input }) => AttributeDAL.public().definitionsByCategory(input.categoryId)),
+    setValues: protectedProcedure
+      .input(SetAttributeValuesInputSchema)
+      .mutation(({ ctx, input }) => AttributeDAL.for(ctx.user).setValues(input.listingId, input.values)),
+    getValues: protectedProcedure
+      .input(z.object({ listingId: z.uuid() }))
+      .query(({ ctx, input }) => AttributeDAL.for(ctx.user).getValues(input.listingId)),
   }),
 });
