@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { useRouter } from "@/i18n/navigation";
 import { useTRPC } from "@/trpc/client";
 import { cfImageUrl } from "@/lib/cf-image-url";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,9 @@ import {
 
 export function ImageUploader({ listingId, coverImageId }: { listingId: string; coverImageId: string | null }) {
   const t = useTranslations("Vendor.gallery");
+  const tv = useTranslations("Vendor");
   const trpc = useTRPC();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -23,11 +26,16 @@ export function ImageUploader({ listingId, coverImageId }: { listingId: string; 
   const listQO = trpc.media.listByListing.queryOptions({ listingId });
   const { data: images } = useQuery(listQO);
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: listQO.queryKey });
+  const invalidateAndRefresh = () => { invalidate(); router.refresh(); };
 
   const requestUpload = useMutation(trpc.media.requestUpload.mutationOptions());
-  const confirm = useMutation(trpc.media.confirm.mutationOptions({ onSuccess: invalidate }));
-  const remove = useMutation(trpc.media.remove.mutationOptions({ onSuccess: invalidate }));
-  const setCover = useMutation(trpc.media.setCover.mutationOptions({ onSuccess: invalidate }));
+  const confirm = useMutation(trpc.media.confirm.mutationOptions({ onSuccess: invalidateAndRefresh }));
+  const remove = useMutation(
+    trpc.media.remove.mutationOptions({ onSuccess: invalidateAndRefresh, onError: () => toast.error(tv("errorSave")) }),
+  );
+  const setCover = useMutation(
+    trpc.media.setCover.mutationOptions({ onSuccess: invalidateAndRefresh, onError: () => toast.error(tv("errorSave")) }),
+  );
 
   async function onFiles(files: FileList | null) {
     if (!files?.length) return;

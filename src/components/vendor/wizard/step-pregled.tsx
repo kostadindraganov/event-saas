@@ -10,6 +10,22 @@ import type { AttributeDefinitionDTO } from "@/data/catalog/attribute.dto";
 import { Button } from "@/components/ui/button";
 import { ListingStatusBadge } from "../listing-status-badge";
 
+function formatValue(
+  d: AttributeDefinitionDTO,
+  value: unknown,
+  locale: string,
+  t: (key: string) => string,
+): string {
+  if (d.type === "boolean") return value ? t("yes") : t("no");
+  const optLabel = (v: string) => {
+    const opt = d.options?.find((o) => o.value === v);
+    return opt ? (locale === "bg" ? opt.labelBg : opt.labelEn) : v;
+  };
+  if (d.type === "multi" && Array.isArray(value)) return (value as string[]).map(optLabel).join(", ");
+  if (d.type === "single" && typeof value === "string") return optLabel(value);
+  return String(value);
+}
+
 export function StepPregled({
   listing,
   definitions,
@@ -70,7 +86,7 @@ export function StepPregled({
             return (
               <li key={v.definitionId}>
                 <span className="text-muted-foreground">{locale === "bg" ? d.labelBg : d.labelEn}:</span>{" "}
-                {Array.isArray(v.value) ? (v.value as string[]).join(", ") : String(v.value)}
+                {formatValue(d, v.value, locale, t)}
               </li>
             );
           })}

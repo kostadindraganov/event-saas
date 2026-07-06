@@ -85,7 +85,9 @@
       "duration": "Duration",
       "included": "What's included",
       "save": "Save package",
-      "remove": "Remove"
+      "remove": "Remove",
+      "removeConfirmTitle": "Delete this package?",
+      "removeConfirmBody": "This package cannot be restored — you will need to recreate it."
     },
     "review": {
       "publish": "Publish listing",
@@ -94,7 +96,9 @@
       "rejectedReason": "Rejection reason",
       "imagesCount": "{count} images",
       "videosCount": "{count} videos",
-      "packagesCount": "{count} packages"
+      "packagesCount": "{count} packages",
+      "yes": "Yes",
+      "no": "No"
     }
   }
 }

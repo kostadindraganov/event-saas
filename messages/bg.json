@@ -85,7 +85,9 @@
       "duration": "Продължителност",
       "included": "Какво включва",
       "save": "Запази пакета",
-      "remove": "Изтрий"
+      "remove": "Изтрий",
+      "removeConfirmTitle": "Изтриване на пакета?",
+      "removeConfirmBody": "Пакетът не може да бъде възстановен — ще трябва да го създадете наново."
     },
     "review": {
       "publish": "Публикувай обявата",
@@ -94,7 +96,9 @@
       "rejectedReason": "Причина за отказа",
       "imagesCount": "{count} снимки",
       "videosCount": "{count} видеа",
-      "packagesCount": "{count} пакета"
+      "packagesCount": "{count} пакета",
+      "yes": "Да",
+      "no": "Не"
     }
   }
 }

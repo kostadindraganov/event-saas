@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 
 export function VideoList({ listingId }: { listingId: string }) {
   const t = useTranslations("Vendor.gallery");
+  const tv = useTranslations("Vendor");
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [url, setUrl] = useState("");
@@ -23,7 +24,9 @@ export function VideoList({ listingId }: { listingId: string }) {
       onError: () => toast.error(t("invalidVideo")),
     }),
   );
-  const remove = useMutation(trpc.catalog.video.remove.mutationOptions({ onSuccess: invalidate }));
+  const remove = useMutation(
+    trpc.catalog.video.remove.mutationOptions({ onSuccess: invalidate, onError: () => toast.error(tv("errorSave")) }),
+  );
 
   return (
     <div className="space-y-4">

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { useRouter } from "@/i18n/navigation";
 import { useTRPC } from "@/trpc/client";
 import type { ListingDTO } from "@/data/catalog/catalog.dto";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ export function StepOsnovni({ listing }: { listing: ListingDTO }) {
   const t = useTranslations("Vendor");
   const tw = useTranslations("Vendor.wizard");
   const trpc = useTRPC();
+  const router = useRouter();
   const [title, setTitle] = useState(listing.title);
   const [description, setDescription] = useState(listing.description);
   const [city, setCity] = useState<CityOption | null>(null);
@@ -27,7 +29,7 @@ export function StepOsnovni({ listing }: { listing: ListingDTO }) {
   const { data: regions } = useQuery(trpc.catalog.location.listRegions.queryOptions());
   const update = useMutation(
     trpc.catalog.listing.update.mutationOptions({
-      onSuccess: () => toast.success(tw("saved")),
+      onSuccess: () => { toast.success(tw("saved")); router.refresh(); },
       onError: () => setError(true),
     }),
   );

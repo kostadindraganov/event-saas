@@ -14,9 +14,15 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export function StepPaketi({ listing }: { listing: ListingDTO }) {
   const t = useTranslations("Vendor.packages");
+  const tg = useTranslations("Vendor.gallery");
   const tv = useTranslations("Vendor");
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -100,9 +106,23 @@ export function StepPaketi({ listing }: { listing: ListingDTO }) {
               </div>
               {p.duration && <p className="text-sm text-muted-foreground">{p.duration}</p>}
               {p.included && <p className="whitespace-pre-line text-sm">{p.included}</p>}
-              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setError(false); remove.mutate({ id: p.id }); }}>
-                {t("remove")}
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-destructive">{t("remove")}</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{t("removeConfirmTitle")}</AlertDialogTitle>
+                    <AlertDialogDescription>{t("removeConfirmBody")}</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{tg("cancel")}</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => { setError(false); remove.mutate({ id: p.id }); }}>
+                      {t("remove")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </CardContent>
           </Card>
         ))}
