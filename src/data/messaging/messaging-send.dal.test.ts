@@ -77,3 +77,23 @@ test("recomputeAvgResponse: vendor reply изчислява avgResponseMinutes",
   expect(u!.avg!).toBeGreaterThanOrEqual(25);
   expect(u!.avg!).toBeLessThanOrEqual(35);
 });
+
+// поставен последен: vendor sendMessage тук би пренастроил avgResponseMinutes и
+// би счупил горния тест, ако се изпълни преди него (recompute осреднява по всички нишки)
+test("скрита обява НЕ спира съществуващ чат; но нов createInquiry към нея → NOT_FOUND", async () => {
+  const dal = ListingDAL.for(vendor);
+  const l3 = await dal.createDraft({ title: "Чат Обява 3", categoryId: await getTestCategoryId(), cityId: await getTestCityId() });
+  await dal.submit(l3.id);
+  const { threadId } = await MessagingDAL.for(customer).createInquiry({ listingId: l3.id, body: "Здр" });
+  await testDb.update(schema.listing).set({ status: "hidden" }).where(eq(schema.listing.id, l3.id));
+  const fromCustomer = await MessagingDAL.for(customer).sendMessage(threadId, "Още сте ли тук?");
+  expect(fromCustomer.body).toBe("Още сте ли тук?");
+  const fromVendor = await MessagingDAL.for(vendor).sendMessage(threadId, "Да, тук сме");
+  expect(fromVendor.body).toBe("Да, тук сме");
+  const customer2Data = await createTestUser();
+  const customer2: SessionUser = { id: customer2Data.id, email: customer2Data.email, name: "Клиент 2", isAdmin: false };
+  await expect(
+    MessagingDAL.for(customer2).createInquiry({ listingId: l3.id, body: "Здр" }),
+  ).rejects.toThrow("NOT_FOUND");
+  await cleanupTestUser(customer2Data.id);
+});

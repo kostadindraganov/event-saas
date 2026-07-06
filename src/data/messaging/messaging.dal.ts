@@ -63,16 +63,27 @@ export class MessagingDAL {
       const [created] = await tx
         .insert(thread)
         .values({ listingId: input.listingId, customerId: this.user.id, vendorId: l.ownerId, lastMessageAt: now })
+        .onConflictDoNothing({ target: [thread.listingId, thread.customerId] })
         .returning({ id: thread.id });
-      if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      await tx.insert(message).values({
-        threadId: created.id,
-        senderId: this.user.id,
-        body: input.body,
-        eventDate: input.eventDate ?? null,
-        phone: input.phone ?? null,
-      });
-      return { threadId: created.id };
+      if (created) {
+        await tx.insert(message).values({
+          threadId: created.id,
+          senderId: this.user.id,
+          body: input.body,
+          eventDate: input.eventDate ?? null,
+          phone: input.phone ?? null,
+        });
+        return { threadId: created.id };
+      }
+      // race: конкурентен insert вече спечели → съществуващият thread е там, третираме като append
+      const [won] = await tx
+        .select({ id: thread.id })
+        .from(thread)
+        .where(and(eq(thread.listingId, input.listingId), eq(thread.customerId, this.user.id)));
+      if (!won) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await tx.insert(message).values({ threadId: won.id, senderId: this.user.id, body: input.body });
+      await tx.update(thread).set({ lastMessageAt: now }).where(eq(thread.id, won.id));
+      return { threadId: won.id };
     });
   }
 
@@ -160,7 +171,14 @@ export class MessagingDAL {
       await tx.update(thread).set({ lastMessageAt: new Date() }).where(eq(thread.id, threadId));
       return msg;
     });
-    if (row.vendorId === me) await this.recomputeAvgResponse();
+    if (row.vendorId === me) {
+      // съобщението вече е персистнато — transient грешка в recompute не бива да проваля sendMessage
+      try {
+        await this.recomputeAvgResponse();
+      } catch (e) {
+        console.error("avgResponse recompute failed", e);
+      }
+    }
     return this.toMessageDTO(inserted);
   }
 
