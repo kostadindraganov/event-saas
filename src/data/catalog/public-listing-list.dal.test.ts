@@ -11,6 +11,11 @@ import type { PublicListingFilterInput } from "./public.dto";
 let owner: SessionUser;
 let ownerId: string, categoryId: string, otherCategoryId: string;
 let cityA: string, cityB: string, styleDefId: string;
+// ponytail: споделена dev Neon — други тестове/E2E публикуват в същата категория
+// успоредно, затова асертваме върху id-тата на seed-натите тук обяви, не върху
+// глобални бройки/позиции.
+const seeded: { евтина?: string; средна?: string; скъпа?: string } = {};
+let seededIds: Set<string>;
 
 const base = (over: Partial<PublicListingFilterInput>): PublicListingFilterInput => ({
   categoryId, sort: "new", page: 1, perPage: 24, ...over,
@@ -38,14 +43,18 @@ beforeAll(async () => {
     await dal.submit(l.id);
     return l;
   };
-  await mk("Обява Евтина", cityA, 10000, ["classic"]);
+  const evtina = await mk("Обява Евтина", cityA, 10000, ["classic"]);
   await new Promise((r) => setTimeout(r, 10));
-  await mk("Обява Средна", cityA, 30000, ["artistic"]);
+  const srednya = await mk("Обява Средна", cityA, 30000, ["artistic"]);
   await new Promise((r) => setTimeout(r, 10));
-  await mk("Обява Скъпа", cityB, 90000, ["classic"]);
+  const skapa = await mk("Обява Скъпа", cityB, 90000, ["classic"]);
   const draft = await dal.createDraft({ title: "Обява Чернова", categoryId, cityId: cityA });
   await PackageDAL.for(owner).create({ listingId: draft.id, name: "П", priceFromCents: 5000 });
   // остава draft — не се брои
+  seeded.евтина = evtina.id;
+  seeded.средна = srednya.id;
+  seeded.скъпа = skapa.id;
+  seededIds = new Set([evtina.id, srednya.id, skapa.id]);
 });
 
 afterAll(async () => {
@@ -54,50 +63,62 @@ afterAll(async () => {
 
 test("категория: само published, total коректен", async () => {
   const page = await ListingDAL.public().list(base({}));
-  expect(page.total).toBe(3);
+  const seededInPage = page.items.filter((i) => seededIds.has(i.id));
+  expect(seededInPage).toHaveLength(3); // и трите published seed-нати обяви присъстват
+  expect(page.total).toBeGreaterThanOrEqual(3);
   expect(page.items.every((i) => i.categorySlug === "fotografi")).toBe(true);
 });
 
 test("друга категория няма съвпадения", async () => {
   const page = await ListingDAL.public().list(base({ categoryId: otherCategoryId }));
-  expect(page.total).toBe(0);
+  const seededInPage = page.items.filter((i) => seededIds.has(i.id));
+  expect(seededInPage).toHaveLength(0); // нашите fotografi seed-нати не се показват в dj
 });
 
 test("филтър по град", async () => {
   const page = await ListingDAL.public().list(base({ cityId: cityA }));
-  expect(page.total).toBe(2);
+  const seededInPage = page.items.filter((i) => seededIds.has(i.id));
+  expect(seededInPage.map((i) => i.id).sort()).toEqual([seeded.евтина!, seeded.средна!].sort());
 });
 
 test("ценови диапазон", async () => {
   const page = await ListingDAL.public().list(base({ priceMinCents: 20000, priceMaxCents: 50000 }));
-  expect(page.total).toBe(1);
-  expect(page.items[0]!.title).toBe("Обява Средна");
+  const seededInPage = page.items.filter((i) => seededIds.has(i.id));
+  expect(seededInPage.map((i) => i.id)).toEqual([seeded.средна]); // само средната цена пасва
 });
 
 test("attrs филтър (multi any-of)", async () => {
   const page = await ListingDAL.public().list(base({ attrs: [{ definitionId: styleDefId, values: ["artistic"] }] }));
-  expect(page.total).toBe(1);
-  expect(page.items[0]!.title).toBe("Обява Средна");
+  const seededInPage = page.items.filter((i) => seededIds.has(i.id));
+  expect(seededInPage.map((i) => i.id)).toEqual([seeded.средна]); // само artistic стила
 });
 
 test("сорт priceAsc / priceDesc", async () => {
   const asc = await ListingDAL.public().list(base({ sort: "priceAsc" }));
-  expect(asc.items.map((i) => i.priceFromCents)).toEqual([10000, 30000, 90000]);
+  const ascSeeded = asc.items.filter((i) => seededIds.has(i.id)).map((i) => i.priceFromCents);
+  expect(ascSeeded).toEqual([10000, 30000, 90000]);
   const desc = await ListingDAL.public().list(base({ sort: "priceDesc" }));
-  expect(desc.items.map((i) => i.priceFromCents)).toEqual([90000, 30000, 10000]);
+  const descSeeded = desc.items.filter((i) => seededIds.has(i.id)).map((i) => i.priceFromCents);
+  expect(descSeeded).toEqual([90000, 30000, 10000]);
 });
 
 test("сорт new = publishedAt desc (default)", async () => {
   const page = await ListingDAL.public().list(base({ sort: "new" }));
-  expect(page.items[0]!.title).toBe("Обява Скъпа"); // последно публикувана
+  const seededOrder = page.items.filter((i) => seededIds.has(i.id)).map((i) => i.id);
+  // последно публикувана (Скъпа) първо, после Средна, после Евтина
+  expect(seededOrder).toEqual([seeded.скъпа, seeded.средна, seeded.евтина]);
 });
 
-test("пагинация: perPage cap 50, page 2 празна при 3 реда", async () => {
-  const p1 = await ListingDAL.public().list(base({ perPage: 2, page: 1 }));
-  expect(p1.items).toHaveLength(2);
-  expect(p1.total).toBe(3);
-  const p2 = await ListingDAL.public().list(base({ perPage: 2, page: 2 }));
-  expect(p2.items).toHaveLength(1);
+test("пагинация: perPage cap 50, page 2 не пропуска/дублира seed-натите", async () => {
+  const priceFilter = { priceMinCents: 10000, priceMaxCents: 90000 };
+  const p1 = await ListingDAL.public().list(base({ ...priceFilter, perPage: 2, page: 1 }));
+  expect(p1.items.length).toBeLessThanOrEqual(2);
+  expect(p1.total).toBeGreaterThanOrEqual(3);
+  const p2 = await ListingDAL.public().list(base({ ...priceFilter, perPage: 2, page: 2 }));
+  const seenSeeded = new Set(
+    [...p1.items, ...p2.items].filter((i) => seededIds.has(i.id)).map((i) => i.id),
+  );
+  expect(seenSeeded.size).toBe(3); // и трите seed-нати обяви се виждат общо на стр. 1+2, без дублиране
   const capped = await ListingDAL.public().list(base({ perPage: 999 }));
   expect(capped.perPage).toBe(50);
 });
