@@ -24,6 +24,7 @@ export function StepPaketi({ listing }: { listing: ListingDTO }) {
   const [price, setPrice] = useState("");
   const [duration, setDuration] = useState("");
   const [included, setIncluded] = useState("");
+  const [error, setError] = useState(false);
 
   const listQO = trpc.catalog.package.listByListing.queryOptions({ listingId: listing.id });
   const { data: packages } = useQuery(listQO);
@@ -36,13 +37,15 @@ export function StepPaketi({ listing }: { listing: ListingDTO }) {
         setOpen(false);
         setName(""); setPrice(""); setDuration(""); setIncluded("");
       },
+      onError: () => setError(true),
     }),
   );
-  const remove = useMutation(trpc.catalog.package.remove.mutationOptions({ onSuccess: invalidate }));
+  const remove = useMutation(trpc.catalog.package.remove.mutationOptions({ onSuccess: invalidate, onError: () => setError(true) }));
 
   // ponytail: без edit в Ф1 — изтрий и създай наново; edit идва ако вендори го поискат
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    setError(false);
     const cents = parseEuroToCents(price);
     if (cents === null || cents <= 0) { toast.error(t("priceInvalid")); return; }
     create.mutate({
@@ -79,6 +82,7 @@ export function StepPaketi({ listing }: { listing: ListingDTO }) {
                 <Label htmlFor="p-inc">{t("included")}</Label>
                 <Textarea id="p-inc" rows={4} value={included} onChange={(e) => setIncluded(e.target.value)} />
               </div>
+              {error && <p role="alert" className="text-sm text-destructive">{t("errorSave", { ns: "Vendor" })}</p>}
               <Button type="submit" className="w-full" disabled={create.isPending}>{t("save")}</Button>
             </form>
           </DialogContent>
@@ -94,7 +98,7 @@ export function StepPaketi({ listing }: { listing: ListingDTO }) {
               </div>
               {p.duration && <p className="text-sm text-muted-foreground">{p.duration}</p>}
               {p.included && <p className="whitespace-pre-line text-sm">{p.included}</p>}
-              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => remove.mutate({ id: p.id })}>
+              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setError(false); remove.mutate({ id: p.id }); }}>
                 {t("remove")}
               </Button>
             </CardContent>
