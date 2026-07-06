@@ -41,6 +41,7 @@
     "create": "Create draft",
     "creating": "Creating…",
     "errorCreate": "Something went wrong while creating. Please try again.",
+    "errorSave": "Something went wrong while saving. Please try again.",
     "status": {
       "draft": "Draft",
       "pending_approval": "Pending approval",

@@ -22,10 +22,14 @@ export function StepOsnovni({ listing }: { listing: ListingDTO }) {
   const [city, setCity] = useState<CityOption | null>(null);
   const [wholeCountry, setWholeCountry] = useState(listing.wholeCountry);
   const [regionIds, setRegionIds] = useState<string[]>(listing.serviceRegionIds);
+  const [error, setError] = useState(false);
 
   const { data: regions } = useQuery(trpc.catalog.location.listRegions.queryOptions());
   const update = useMutation(
-    trpc.catalog.listing.update.mutationOptions({ onSuccess: () => toast.success(tw("saved")) }),
+    trpc.catalog.listing.update.mutationOptions({
+      onSuccess: () => toast.success(tw("saved")),
+      onError: () => setError(true),
+    }),
   );
 
   return (
@@ -33,6 +37,7 @@ export function StepOsnovni({ listing }: { listing: ListingDTO }) {
       className="space-y-6"
       onSubmit={(e) => {
         e.preventDefault();
+        setError(false);
         update.mutate({
           id: listing.id,
           title: title.trim(),
@@ -77,6 +82,7 @@ export function StepOsnovni({ listing }: { listing: ListingDTO }) {
           </div>
         </fieldset>
       )}
+      {error && <p role="alert" className="text-sm text-destructive">{t("errorSave")}</p>}
       <Button type="submit" disabled={update.isPending || title.trim().length < 3}>
         {update.isPending ? tw("saving") : tw("save")}
       </Button>
