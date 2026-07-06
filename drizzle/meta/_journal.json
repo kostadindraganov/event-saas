@@ -22,6 +22,13 @@
       "when": 1783346080116,
       "tag": "0002_lively_callisto",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783356528344,
+      "tag": "0003_wide_green_goblin",
+      "breakpoints": true
     }
   ]
 }

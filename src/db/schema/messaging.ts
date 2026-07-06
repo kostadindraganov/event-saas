@@ -1,4 +1,4 @@
-import { date, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { date, index, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { listing } from "./catalog";
 
@@ -12,16 +12,24 @@ export const thread = pgTable(
     lastMessageAt: timestamp("last_message_at").notNull().defaultNow(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [unique().on(t.listingId, t.customerId)],
+  (t) => [
+    unique().on(t.listingId, t.customerId),
+    index("thread_vendor_idx").on(t.vendorId, t.lastMessageAt.desc()),
+    index("thread_customer_idx").on(t.customerId, t.lastMessageAt.desc()),
+  ],
 );
 
-export const message = pgTable("message", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  threadId: uuid("thread_id").notNull().references(() => thread.id, { onDelete: "cascade" }),
-  senderId: text("sender_id").notNull().references(() => user.id),
-  body: text("body").notNull(),
-  eventDate: date("event_date"), // само на първото съобщение (запитването)
-  phone: text("phone"),
-  readAt: timestamp("read_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const message = pgTable(
+  "message",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    threadId: uuid("thread_id").notNull().references(() => thread.id, { onDelete: "cascade" }),
+    senderId: text("sender_id").notNull().references(() => user.id),
+    body: text("body").notNull(),
+    eventDate: date("event_date"), // само на първото съобщение (запитването)
+    phone: text("phone"),
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("message_thread_idx").on(t.threadId, t.createdAt)],
+);

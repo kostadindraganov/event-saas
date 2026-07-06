@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
@@ -25,7 +25,11 @@ export async function createTestUser() {
 }
 
 export async function cleanupTestUser(userId: string) {
-  // обявите каскадират децата си; user FK-тата са no-action → първо обявите
+  // thread FK-тата (customerId/vendorId) са no-action → трий нишките първо (message каскадира от thread)
+  await testDb.delete(schema.thread).where(
+    or(eq(schema.thread.vendorId, userId), eq(schema.thread.customerId, userId)),
+  );
+  // обявите каскадират децата си; savedListing.userId има onDelete cascade → авто при delete user
   await testDb.delete(schema.listing).where(eq(schema.listing.ownerId, userId));
   await testDb.delete(schema.user).where(eq(schema.user.id, userId));
 }
