@@ -54,7 +54,8 @@ export const auth = betterAuth({
       ? [
           polar({
             client: polarClient,
-            createCustomerOnSignUp: true,
+            // Отклонение от Tech Spec §2.2: lazy customer при checkout (externalCustomerId) — иначе Polar outage чупи регистрацията (E2E D1)
+            createCustomerOnSignUp: false,
             use: [
               checkout({
                 products: [
