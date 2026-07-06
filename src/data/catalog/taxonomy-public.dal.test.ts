@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestUser, cleanupTestUser, getTestCityId, testDb } from "@/test/db-helpers";
+import { createTestUser, cleanupTestUser, createTestSubscription, getTestCityId, testDb } from "@/test/db-helpers";
 import * as schema from "@/db/schema";
 import { TaxonomyDAL } from "./taxonomy.dal";
 import { ListingDAL } from "./listing.dal";
@@ -13,6 +13,8 @@ beforeAll(async () => {
   const u = await createTestUser();
   ownerId = u.id;
   owner = { id: u.id, email: u.email, name: "Тест", isAdmin: false };
+  // submit() изисква активен план (M2.1 Задача 3)
+  await createTestSubscription(ownerId, { plan: "premium", status: "active" });
   const [cat] = await testDb.select().from(schema.category).where(eq(schema.category.slug, "fotografi"));
   const dal = ListingDAL.for(owner);
   const l = await dal.createDraft({ title: "Recent Тест Обява", categoryId: cat!.id, cityId: await getTestCityId() });

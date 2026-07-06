@@ -6,7 +6,7 @@ vi.mock("@/lib/email", () => ({
   newMessageEmail: vi.fn(() => ({ subject: "s", html: "h" })),
 }));
 
-import { createTestUser, cleanupTestUser, getTestCategoryId, getTestCityId } from "@/test/db-helpers";
+import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId } from "@/test/db-helpers";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import { MessagingDAL } from "./messaging.dal";
 import type { SessionUser } from "@/data/users/require-user";
@@ -21,6 +21,8 @@ beforeAll(async () => {
   customerId = c.id; vendorId = v.id;
   customer = { id: c.id, email: c.email, name: "Клиент", isAdmin: false };
   vendor = { id: v.id, email: v.email, name: "Вендор", isAdmin: false };
+  // submit() изисква активен план (M2.1 Задача 3)
+  await createTestSubscription(vendorId, { plan: "premium", status: "active" });
   const categoryId = await getTestCategoryId();
   const cityId = await getTestCityId();
   const dal = ListingDAL.for(vendor);

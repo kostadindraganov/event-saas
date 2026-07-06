@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { appRouter } from "./_app";
 import { createCallerFactory } from "../init";
-import { createTestUser, cleanupTestUser, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
+import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
 import * as schema from "@/db/schema";
 
 // ponytail: revalidateTag извън заявка/render хвърля "static generation store missing";
@@ -18,6 +18,8 @@ beforeAll(async () => {
   const u = await createTestUser();
   userId = u.id;
   caller = createCaller({ user: { id: u.id, email: u.email, name: "Тест", isAdmin: false } });
+  // submit() изисква активен план (M2.1 Задача 3); premium → 2 published per категория
+  await createTestSubscription(userId, { plan: "premium", status: "active" });
   categoryId = await getTestCategoryId();
   cityId = await getTestCityId();
 });

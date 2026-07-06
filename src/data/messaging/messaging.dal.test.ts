@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestUser, cleanupTestUser, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
+import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
 import { user } from "@/db/schema";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import { MessagingDAL } from "./messaging.dal";
@@ -23,6 +23,8 @@ beforeAll(async () => {
   await testDb.update(user).set({ name: "Клиент" }).where(eq(user.id, c.id));
   await testDb.update(user).set({ name: "Вендор" }).where(eq(user.id, v.id));
   await testDb.update(user).set({ name: "Външен" }).where(eq(user.id, s.id));
+  // submit() изисква активен план (M2.1 Задача 3); premium → 2 published в категорията
+  await createTestSubscription(vendorId, { plan: "premium", status: "active" });
   const categoryId = await getTestCategoryId();
   const cityId = await getTestCityId();
   const dal = ListingDAL.for(vendor);

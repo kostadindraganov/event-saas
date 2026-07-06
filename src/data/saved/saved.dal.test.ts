@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { createTestUser, cleanupTestUser, getTestCategoryId, getTestCityId } from "@/test/db-helpers";
+import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId } from "@/test/db-helpers";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import { SavedDAL } from "./saved.dal";
 import type { SessionUser } from "@/data/users/require-user";
@@ -15,6 +15,8 @@ beforeAll(async () => {
   ownerId = u2.id;
   me = { id: u1.id, email: u1.email, name: "Клиент", isAdmin: false };
   owner = { id: u2.id, email: u2.email, name: "Вендор", isAdmin: false };
+  // submit() изисква активен план (M2.1 Задача 3); premium → 2 published в категорията
+  await createTestSubscription(ownerId, { plan: "premium", status: "active" });
   const categoryId = await getTestCategoryId();
   const cityId = await getTestCityId();
   const dal = ListingDAL.for(owner);

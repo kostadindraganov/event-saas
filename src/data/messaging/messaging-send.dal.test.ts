@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { eq, sql } from "drizzle-orm";
-import { createTestUser, cleanupTestUser, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
+import { eq, ne, sql } from "drizzle-orm";
+import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
 import * as schema from "@/db/schema";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import { MessagingDAL } from "./messaging.dal";
@@ -9,6 +9,7 @@ import type { SessionUser } from "@/data/users/require-user";
 let customer: SessionUser, vendor: SessionUser;
 let customerId: string, vendorId: string;
 let publishedId: string;
+let categoryId: string;
 
 beforeAll(async () => {
   const c = await createTestUser();
@@ -16,7 +17,9 @@ beforeAll(async () => {
   customerId = c.id; vendorId = v.id;
   customer = { id: c.id, email: c.email, name: "Клиент", isAdmin: false };
   vendor = { id: v.id, email: v.email, name: "Вендор", isAdmin: false };
-  const categoryId = await getTestCategoryId();
+  // submit() изисква активен план (M2.1 Задача 3); premium → 2 published per категория
+  await createTestSubscription(vendorId, { plan: "premium", status: "active" });
+  categoryId = await getTestCategoryId();
   const cityId = await getTestCityId();
   const dal = ListingDAL.for(vendor);
   const pub = await dal.createDraft({ title: "Чат Обява", categoryId, cityId });
@@ -82,7 +85,13 @@ test("recomputeAvgResponse: vendor reply изчислява avgResponseMinutes",
 // би счупил горния тест, ако се изпълни преди него (recompute осреднява по всички нишки)
 test("скрита обява НЕ спира съществуващ чат; но нов createInquiry към нея → NOT_FOUND", async () => {
   const dal = ListingDAL.for(vendor);
-  const l3 = await dal.createDraft({ title: "Чат Обява 3", categoryId: await getTestCategoryId(), cityId: await getTestCityId() });
+  // 3-та published обява: premium лимитът е 2 per категория → друга категория (без значение за чат семантиката)
+  const [otherCat] = await testDb
+    .select({ id: schema.category.id })
+    .from(schema.category)
+    .where(ne(schema.category.id, categoryId))
+    .limit(1);
+  const l3 = await dal.createDraft({ title: "Чат Обява 3", categoryId: otherCat!.id, cityId: await getTestCityId() });
   await dal.submit(l3.id);
   const { threadId } = await MessagingDAL.for(customer).createInquiry({ listingId: l3.id, body: "Здр" });
   await testDb.update(schema.listing).set({ status: "hidden" }).where(eq(schema.listing.id, l3.id));

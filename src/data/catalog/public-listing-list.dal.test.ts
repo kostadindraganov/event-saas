@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestUser, cleanupTestUser, testDb } from "@/test/db-helpers";
+import { createTestUser, cleanupTestUser, createTestSubscription, testDb } from "@/test/db-helpers";
 import * as schema from "@/db/schema";
 import { ListingDAL } from "./listing.dal";
 import { PackageDAL } from "./package.dal";
@@ -8,8 +8,8 @@ import { AttributeDAL } from "./attribute.dal";
 import type { SessionUser } from "@/data/users/require-user";
 import type { PublicListingFilterInput } from "./public.dto";
 
-let owner: SessionUser;
-let ownerId: string, categoryId: string, otherCategoryId: string;
+let owner: SessionUser, owner2: SessionUser;
+let ownerId: string, owner2Id: string, categoryId: string, otherCategoryId: string;
 let cityA: string, cityB: string, styleDefId: string;
 let draftId: string;
 // ponytail: споделена dev Neon — други тестове/E2E публикуват в същата категория
@@ -26,6 +26,13 @@ beforeAll(async () => {
   const u = await createTestUser();
   ownerId = u.id;
   owner = { id: u.id, email: u.email, name: "Тест", isAdmin: false };
+  const u2 = await createTestUser();
+  owner2Id = u2.id;
+  owner2 = { id: u2.id, email: u2.email, name: "Тест 2", isAdmin: false };
+  // submit() изисква активен план (M2.1 Задача 3); premium = 2 published per категория →
+  // 3-те fotografi обяви се разпределят между двама owner-а (асертите са по id, не по owner)
+  await createTestSubscription(ownerId, { plan: "premium", status: "active" });
+  await createTestSubscription(owner2Id, { plan: "premium", status: "active" });
   const [cat] = await testDb.select().from(schema.category).where(eq(schema.category.slug, "fotografi"));
   categoryId = cat!.id;
   const [cat2] = await testDb.select().from(schema.category).where(eq(schema.category.slug, "dj"));
@@ -37,18 +44,18 @@ beforeAll(async () => {
   styleDefId = defs.find((d) => d.key === "style")!.id;
   const dal = ListingDAL.for(owner);
 
-  const mk = async (title: string, cityId: string, price: number, style?: string[]) => {
-    const l = await dal.createDraft({ title, categoryId, cityId });
-    await PackageDAL.for(owner).create({ listingId: l.id, name: "П", priceFromCents: price });
-    if (style) await AttributeDAL.for(owner).setValues(l.id, [{ definitionId: styleDefId, value: style }]);
-    await dal.submit(l.id);
+  const mk = async (u: SessionUser, title: string, cityId: string, price: number, style?: string[]) => {
+    const l = await ListingDAL.for(u).createDraft({ title, categoryId, cityId });
+    await PackageDAL.for(u).create({ listingId: l.id, name: "П", priceFromCents: price });
+    if (style) await AttributeDAL.for(u).setValues(l.id, [{ definitionId: styleDefId, value: style }]);
+    await ListingDAL.for(u).submit(l.id);
     return l;
   };
-  const evtina = await mk("Обява Евтина", cityA, 10000, ["classic"]);
+  const evtina = await mk(owner, "Обява Евтина", cityA, 10000, ["classic"]);
   await new Promise((r) => setTimeout(r, 10));
-  const srednya = await mk("Обява Средна", cityA, 30000, ["artistic"]);
+  const srednya = await mk(owner, "Обява Средна", cityA, 30000, ["artistic"]);
   await new Promise((r) => setTimeout(r, 10));
-  const skapa = await mk("Обява Скъпа", cityB, 90000, ["classic"]);
+  const skapa = await mk(owner2, "Обява Скъпа", cityB, 90000, ["classic"]);
   const draft = await dal.createDraft({ title: "Обява Чернова", categoryId, cityId: cityA });
   draftId = draft.id;
   await PackageDAL.for(owner).create({ listingId: draft.id, name: "П", priceFromCents: 5000 });
@@ -61,6 +68,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await cleanupTestUser(ownerId);
+  await cleanupTestUser(owner2Id);
 });
 
 test("категория: само published, total коректен", async () => {
