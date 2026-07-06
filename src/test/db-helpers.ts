@@ -24,11 +24,37 @@ export async function createTestUser() {
   return { id, email };
 }
 
+export async function createTestSubscription(
+  userId: string,
+  opts: {
+    plan: "standard" | "premium";
+    status: "active" | "past_due" | "canceled" | "revoked";
+    graceUntil?: Date | null;
+  },
+) {
+  // userId е unique — трий преди повторен insert (тест сменя план/статус на същия owner)
+  await testDb.delete(schema.subscription).where(eq(schema.subscription.userId, userId));
+  const [row] = await testDb
+    .insert(schema.subscription)
+    .values({
+      userId,
+      polarSubscriptionId: `test-${randomUUID()}`,
+      plan: opts.plan,
+      status: opts.status,
+      graceUntil: opts.graceUntil ?? null,
+    })
+    .returning();
+  if (!row) throw new Error("INSERT_FAILED");
+  return row;
+}
+
 export async function cleanupTestUser(userId: string) {
   // thread FK-тата (customerId/vendorId) са no-action → трий нишките първо (message каскадира от thread)
   await testDb.delete(schema.thread).where(
     or(eq(schema.thread.vendorId, userId), eq(schema.thread.customerId, userId)),
   );
+  // subscription.userId FK → user.id е no-action; трий преди user
+  await testDb.delete(schema.subscription).where(eq(schema.subscription.userId, userId));
   // обявите каскадират децата си; savedListing.userId има onDelete cascade → авто при delete user
   await testDb.delete(schema.listing).where(eq(schema.listing.ownerId, userId));
   await testDb.delete(schema.user).where(eq(schema.user.id, userId));

@@ -1,0 +1,1 @@
+ALTER TABLE "listing" ADD COLUMN "hidden_by_system" boolean DEFAULT false NOT NULL;

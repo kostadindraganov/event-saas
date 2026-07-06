@@ -60,6 +60,8 @@ export const listing = pgTable("listing", {
   wholeCountry: boolean("whole_country").notNull().default(false),
   status: listingStatus("status").notNull().default("draft"),
   rejectionReason: text("rejection_reason"),
+  // системно скриване (гратис изтекъл/revoked/downgrade) — НЕ се пипа при ръчен hide/unhide; publish пътищата (submit/unhide) винаги я нулират
+  hiddenBySystem: boolean("hidden_by_system").notNull().default(false),
   // кеширани агрегати (преизчисляват се при ново ревю / промяна на пакети)
   priceFromCents: integer("price_from_cents"),
   ratingAvg: numeric("rating_avg", { precision: 3, scale: 2 }),

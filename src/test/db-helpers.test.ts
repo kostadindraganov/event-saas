@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestUser, cleanupTestUser, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
+import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
 import * as schema from "@/db/schema";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 
@@ -25,4 +25,38 @@ test("cleanupTestUser трие thread-ове (customer/vendor) преди user �
 
   await cleanupTestUser(a.id);
   expect((await testDb.select().from(schema.user).where(eq(schema.user.id, a.id))).length).toBe(0);
+});
+
+test("listing.hiddenBySystem: default false на нов draft", async () => {
+  const u = await createTestUser();
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const created = await ListingDAL.for({ id: u.id, email: u.email, name: "Т", isAdmin: false })
+    .createDraft({ title: "Хидън Систем Дефолт Тест", categoryId, cityId });
+  const [row] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, created.id));
+  expect(row?.hiddenBySystem).toBe(false);
+  await cleanupTestUser(u.id);
+});
+
+test("createTestSubscription: вмъква ред; повторен извикване презаписва; cleanupTestUser го трие преди user — без FK грешка", async () => {
+  const u = await createTestUser();
+  const graceUntil = new Date(Date.now() + 86_400_000);
+  const sub = await createTestSubscription(u.id, { plan: "premium", status: "past_due", graceUntil });
+  expect(sub.userId).toBe(u.id);
+  expect(sub.plan).toBe("premium");
+  expect(sub.status).toBe("past_due");
+  expect(sub.graceUntil?.getTime()).toBe(graceUntil.getTime());
+
+  // повторно извикване (напр. друг тест сменя плана на същия owner) → delete-then-insert, не гърми на unique(userId)
+  const sub2 = await createTestSubscription(u.id, { plan: "standard", status: "active" });
+  expect(sub2.plan).toBe("standard");
+  expect(
+    (await testDb.select().from(schema.subscription).where(eq(schema.subscription.userId, u.id))).length,
+  ).toBe(1);
+
+  await cleanupTestUser(u.id);
+  expect((await testDb.select().from(schema.user).where(eq(schema.user.id, u.id))).length).toBe(0);
+  expect(
+    (await testDb.select().from(schema.subscription).where(eq(schema.subscription.userId, u.id))).length,
+  ).toBe(0);
 });
