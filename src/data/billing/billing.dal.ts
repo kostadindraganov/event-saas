@@ -2,7 +2,8 @@ import "server-only";
 import { and, count, eq, inArray, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { listing, setting, subscription } from "@/db/schema";
+import { listing, setting, subscription, user } from "@/db/schema";
+import { listingsHiddenEmail, sendEmail, subscriptionPastDueEmail } from "@/lib/email";
 
 // Тесен локален тип: точната форма на Polar webhook payload-а не е потвърдена в код —
 // пазим само полетата, които реално ползваме, и парсваме defensively.
@@ -100,6 +101,24 @@ async function countOwnerPublished(
   return row?.n ?? 0;
 }
 
+// fire-and-forget: чете email от user; НИКОГА не бута webhook проекцията
+async function notifyPastDueEmail(userId: string, graceUntil: Date | null): Promise<void> {
+  if (!graceUntil) return;
+  const [row] = await db.select({ email: user.email, name: user.name }).from(user).where(eq(user.id, userId));
+  if (!row?.email) return;
+  const { subject, html } = subscriptionPastDueEmail({ graceUntil });
+  await sendEmail({ to: row.email, subject, html });
+}
+
+// export: и Задача 7 cron (expireGracePeriods) я ползва за скрити-по-изтичане-на-гратис
+export async function notifyListingsHiddenEmail(userId: string, count: number): Promise<void> {
+  if (count <= 0) return;
+  const [row] = await db.select({ email: user.email, name: user.name }).from(user).where(eq(user.id, userId));
+  if (!row?.email) return;
+  const { subject, html } = listingsHiddenEmail({ count });
+  await sendEmail({ to: row.email, subject, html });
+}
+
 export class BillingDAL {
   // Вика се вътре в submit()/unhide() транзакцията (tx), ПРЕДИ CAS UPDATE-а на listing.status.
   // Standard = общо 1 published (без значение от categoryId); Premium = 2 per categoryId.
@@ -141,10 +160,10 @@ export class BillingDAL {
       return;
     }
 
-    const { graceDays } = await getBillingSettings();
+    const { graceDays, limits } = await getBillingSettings();
     const currentPeriodEnd = payload.data.currentPeriodEnd ? new Date(payload.data.currentPeriodEnd) : null;
 
-    await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const [existing] = await tx
         .select({ status: subscription.status, plan: subscription.plan, graceUntil: subscription.graceUntil })
         .from(subscription)
@@ -165,14 +184,24 @@ export class BillingDAL {
           set: { polarSubscriptionId: payload.data.id, plan, status, currentPeriodEnd, graceUntil, updatedAt: new Date() },
         });
 
+      let hiddenCount = 0;
       if (status === "revoked") {
-        await hideAllPublished(tx, userId);
+        hiddenCount = await hideAllPublished(tx, userId);
       } else if (plan === "standard" && existing?.plan === "premium") {
         const published = await countPublished(tx, userId);
-        if (published > 1) await hideAllPublished(tx, userId);
+        if (published > limits.standard) hiddenCount = await hideAllPublished(tx, userId);
       }
+
+      const isNewPastDue = status === "past_due" && existing?.status !== "past_due";
+      return { isNewPastDue, hiddenCount, graceUntil };
     });
 
-    // ponytail: email wiring е Задача 6 — тук нарочно няма нотификации.
+    // fire-and-forget email-и СЛЕД транзакцията; никога не бутат обработката на webhook-а
+    if (result.isNewPastDue) {
+      void notifyPastDueEmail(userId, result.graceUntil).catch((e) => console.error("email failed", e));
+    }
+    if (result.hiddenCount > 0) {
+      void notifyListingsHiddenEmail(userId, result.hiddenCount).catch((e) => console.error("email failed", e));
+    }
   }
 }

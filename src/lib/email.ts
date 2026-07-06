@@ -1,5 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
+import { getBaseUrl } from "@/lib/seo";
 
 let warned = false;
 
@@ -38,6 +39,29 @@ export function newMessageEmail(input: {
   <p>Имате ново съобщение относно обявата <strong>${escapeHtml(input.listingTitle)}</strong>:</p>
   <blockquote style="border-left:3px solid #ddd;margin:0;padding:0 0 0 12px;color:#333">${escapeHtml(input.body)}</blockquote>
   <p><a href="${input.threadUrl}">Виж разговора</a></p>
+</div>`;
+  return { subject, html };
+}
+
+export function subscriptionPastDueEmail(input: { graceUntil: Date }): { subject: string; html: string } {
+  const subject = "Проблем с плащането на абонамента Ви";
+  const dateStr = input.graceUntil.toLocaleDateString("bg-BG", { year: "numeric", month: "long", day: "numeric" });
+  const html = `<div style="font-family:sans-serif;line-height:1.5;color:#111">
+  <p>Здравейте,</p>
+  <p>Опитът за подновяване на абонамента Ви не бе успешен. Имате 7-дневен гратис период да актуализирате начина на плащане.</p>
+  <p>Ако не бъде разрешено до <strong>${dateStr}</strong>, публикуваните Ви обяви ще бъдат временно скрити.</p>
+  <p><a href="${getBaseUrl()}/profil/dostavchik/abonament">Управление на абонамента</a></p>
+</div>`;
+  return { subject, html };
+}
+
+export function listingsHiddenEmail(input: { count: number }): { subject: string; html: string } {
+  const subject = "Обявите Ви бяха скрити";
+  const html = `<div style="font-family:sans-serif;line-height:1.5;color:#111">
+  <p>Здравейте,</p>
+  <p>${input.count} от публикуваните Ви обяви бяха автоматично скрити поради проблем с абонамента.</p>
+  <p>Възстановете абонамента, за да ги публикувате отново.</p>
+  <p><a href="${getBaseUrl()}/profil/dostavchik/abonament">Управление на абонамента</a></p>
 </div>`;
   return { subject, html };
 }

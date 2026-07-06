@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { newMessageEmail, sendEmail } from "./email";
+import { listingsHiddenEmail, newMessageEmail, sendEmail, subscriptionPastDueEmail } from "./email";
 
 test("newMessageEmail: subject + html съдържат обява/тяло/получател/URL", () => {
   const { subject, html } = newMessageEmail({
@@ -30,4 +30,18 @@ test("sendEmail без RESEND_API_KEY: console.warn + return, без хвърл�
   expect(warn).toHaveBeenCalled();
   warn.mockRestore();
   if (prev !== undefined) process.env.RESEND_API_KEY = prev;
+});
+
+test("subscriptionPastDueEmail: съдържа форматираната дата и линк към абонамента", () => {
+  const { subject, html } = subscriptionPastDueEmail({ graceUntil: new Date("2026-08-06T00:00:00.000Z") });
+  expect(subject).toContain("абонамент");
+  expect(html).toContain("/profil/dostavchik/abonament");
+  expect(html).toContain("2026");
+});
+
+test("listingsHiddenEmail: съдържа броя скрити обяви и линк към абонамента", () => {
+  const { subject, html } = listingsHiddenEmail({ count: 3 });
+  expect(subject.length).toBeGreaterThan(0);
+  expect(html).toContain("3");
+  expect(html).toContain("/profil/dostavchik/abonament");
 });
