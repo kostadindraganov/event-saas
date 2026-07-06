@@ -5,6 +5,7 @@ import { ListingDAL } from "@/data/catalog/listing.dal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ListingStatusBadge } from "@/components/vendor/listing-status-badge";
+import { ListingActions } from "@/components/vendor/listing-actions";
 import { formatEuro } from "@/lib/money";
 
 export default async function MyListingsPage() {
@@ -36,9 +37,12 @@ export default async function MyListingsPage() {
                     {t("priceFrom", { price: formatEuro(l.priceFromCents) })}
                   </p>
                 )}
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/profil/dostavchik/obiavi/${l.id}`}>{t("edit")}</Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/profil/dostavchik/obiavi/${l.id}`}>{t("edit")}</Link>
+                  </Button>
+                  <ListingActions id={l.id} status={l.status} />
+                </div>
               </CardContent>
             </Card>
           ))}

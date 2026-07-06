@@ -7,6 +7,7 @@ import { StepOsnovni } from "./step-osnovni";
 import { StepAtributi } from "./step-atributi";
 import { StepGaleria } from "./step-galeria";
 import { StepPaketi } from "./step-paketi";
+import { StepPregled } from "./step-pregled";
 
 export function WizardShell({
   listing,
@@ -28,7 +29,7 @@ export function WizardShell({
         {step === "atributi" && <StepAtributi listing={listing} definitions={definitions} />}
         {step === "galeria" && <StepGaleria listing={listing} />}
         {step === "paketi" && <StepPaketi listing={listing} />}
-        {step === "pregled" && <p className="text-muted-foreground">…</p>}
+        {step === "pregled" && <StepPregled listing={listing} definitions={definitions} />}
       </section>
       <WizardNav current={step} listingId={listing.id} position="bottom" />
     </main>
