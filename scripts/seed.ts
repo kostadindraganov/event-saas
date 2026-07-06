@@ -4,6 +4,7 @@ import { Pool, neonConfig } from "@neondatabase/serverless";
 import { eq } from "drizzle-orm";
 import ws from "ws";
 import { category, region, city, attributeDefinition } from "../src/db/schema/catalog";
+import { setting } from "../src/db/schema/billing";
 import { CATEGORIES, REGIONS } from "./seed-data";
 import { ATTRIBUTE_SEED } from "./seed-attributes";
 
@@ -39,6 +40,14 @@ async function main() {
     if (!row) throw new Error(`region ${r.slug} missing`);
     await db.insert(city).values({ regionId: row.id, ...r.city }).onConflictDoNothing();
   }
+
+  await db
+    .insert(setting)
+    .values([
+      { key: "billing.limits", value: { standard: 1, premiumPerCategory: 2 } },
+      { key: "billing.graceDays", value: 7 },
+    ])
+    .onConflictDoNothing({ target: setting.key });
 
   await seedAttributes();
 
