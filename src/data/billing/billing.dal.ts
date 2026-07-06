@@ -215,19 +215,34 @@ export class BillingDAL {
   async keepListing(listingId: string): Promise<void> {
     const userId = this.user.id;
     await db.transaction(async (tx) => {
+      // планът гейтва семантиката: same select като restoreListings; без активен ред → NO_SUBSCRIPTION
+      const [subRow] = await tx.select().from(subscription).where(eq(subscription.userId, userId));
+      const activeForPublishing = subRow && (
+        subRow.status === "active" ||
+        (subRow.status === "past_due" && subRow.graceUntil !== null && subRow.graceUntil > new Date())
+      );
+      if (!activeForPublishing) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
+
       const [row] = await tx.select().from(listing).where(eq(listing.id, listingId));
       // чужда обява ИЛИ не е system-hidden → NOT_FOUND, никога FORBIDDEN (без enumeration, contract т.7)
       if (!row || row.ownerId !== userId || row.status !== "hidden" || !row.hiddenBySystem) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
-      await BillingDAL.assertCanPublish(tx, userId, row.categoryId, listingId);
+
+      if (subRow!.plan === "standard") {
+        // picker semantics ("избери коя 1 остава"): скрий всички ДРУГИ published сестри,
+        // после публикувай избраната — след hide-а published=0, entitlement е тривиален (без assertCanPublish).
+        await tx.update(listing)
+          .set({ status: "hidden", hiddenBySystem: true, updatedAt: new Date() })
+          .where(and(eq(listing.ownerId, userId), ne(listing.id, listingId), eq(listing.status, "published")));
+      } else {
+        // premium: НИКАКЪВ sibling hide (чужди категории са легитимни) — само per-category entitlement
+        await BillingDAL.assertCanPublish(tx, userId, row.categoryId, listingId);
+      }
+
       await tx.update(listing)
         .set({ status: "published", hiddenBySystem: false, publishedAt: new Date(), updatedAt: new Date() })
         .where(and(eq(listing.id, listingId), eq(listing.status, "hidden")));
-      // скрий всички останали published сестри на собственика (запазваме само избраната)
-      await tx.update(listing)
-        .set({ status: "hidden", hiddenBySystem: true, updatedAt: new Date() })
-        .where(and(eq(listing.ownerId, userId), ne(listing.id, listingId), eq(listing.status, "published")));
     });
   }
 
