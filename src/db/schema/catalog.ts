@@ -1,7 +1,8 @@
 import {
-  boolean, integer, jsonb, numeric, pgEnum, pgTable, primaryKey,
+  boolean, index, integer, jsonb, numeric, pgEnum, pgTable, primaryKey,
   text, timestamp, unique, uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { user } from "./auth";
 
 export const listingStatus = pgEnum("listing_status", [
@@ -61,7 +62,14 @@ export const listing = pgTable("listing", {
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [
+  // hot path: /[category] листинг, сортиран по нови; partial → пропуска draft/hidden редовете
+  index("listing_cat_pub_idx").on(t.categoryId, t.publishedAt.desc()).where(sql`${t.status} = 'published'`),
+  // /[category]/[city] гео landing
+  index("listing_city_pub_idx").on(t.cityId, t.publishedAt.desc()).where(sql`${t.status} = 'published'`),
+  // начална «нови» + глобална пагинация/sitemap
+  index("listing_pub_idx").on(t.publishedAt.desc()).where(sql`${t.status} = 'published'`),
+]);
 
 export const listingServiceRegion = pgTable(
   "listing_service_region",
@@ -69,7 +77,10 @@ export const listingServiceRegion = pgTable(
     listingId: uuid("listing_id").notNull().references(() => listing.id, { onDelete: "cascade" }),
     regionId: uuid("region_id").notNull().references(() => region.id),
   },
-  (t) => [primaryKey({ columns: [t.listingId, t.regionId] })],
+  (t) => [
+    primaryKey({ columns: [t.listingId, t.regionId] }),
+    index("lsr_region_idx").on(t.regionId),
+  ],
 );
 
 export const attributeDefinition = pgTable(
@@ -106,14 +117,18 @@ export const album = pgTable("album", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
-export const listingImage = pgTable("listing_image", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  listingId: uuid("listing_id").notNull().references(() => listing.id, { onDelete: "cascade" }),
-  albumId: uuid("album_id").references(() => album.id, { onDelete: "set null" }),
-  cfImageId: text("cf_image_id").notNull(),
-  sortOrder: integer("sort_order").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const listingImage = pgTable(
+  "listing_image",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    listingId: uuid("listing_id").notNull().references(() => listing.id, { onDelete: "cascade" }),
+    albumId: uuid("album_id").references(() => album.id, { onDelete: "set null" }),
+    cfImageId: text("cf_image_id").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("listing_image_idx").on(t.listingId, t.sortOrder)],
+);
 
 export const listingVideo = pgTable("listing_video", {
   id: uuid("id").primaryKey().defaultRandom(),
