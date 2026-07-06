@@ -37,6 +37,16 @@ test("parseListParams override wins", () => {
   expect(parseListParams({ city: "c1" }, "cat1", defs, { cityId: "fixed" }).cityId).toBe("fixed");
 });
 
+test("parseListParams ignores junk price (abc)", () => {
+  const input = parseListParams({ priceMin: "abc", city: "c1" }, "cat1", defs);
+  expect(input.priceMinCents).toBeUndefined();
+});
+
+test("parseListParams ignores negative price (-100)", () => {
+  const input = parseListParams({ priceMin: "-100", city: "c1" }, "cat1", defs);
+  expect(input.priceMinCents).toBeUndefined();
+});
+
 test("pageWindow", () => {
   expect(pageWindow(1, 1)).toEqual([1]);
   expect(pageWindow(2, 3)).toEqual([1, 2, 3]);
