@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { TaxonomyDAL } from "@/data/catalog/taxonomy.dal";
 import { AttributeDAL } from "@/data/catalog/attribute.dal";
-import { cachedListingList } from "@/data/catalog/public-cached";
+import { cachedCategoryBySlug, cachedListingList } from "@/data/catalog/public-cached";
 import { parseListParams } from "@/lib/catalog-search-params";
 import { JsonLd } from "@/components/catalog/json-ld";
 import { ListingGrid } from "@/components/catalog/listing-grid";
@@ -21,7 +20,7 @@ type Props = {
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { locale, category: categorySlug } = await params;
   const { page } = await searchParams;
-  const cat = await TaxonomyDAL.public().categoryBySlug(categorySlug);
+  const cat = await cachedCategoryBySlug(categorySlug);
   if (!cat) return {};
   const title = locale === "en" ? cat.nameEn : cat.nameBg;
   const description =
@@ -60,7 +59,7 @@ export default async function CategoryPage({
   setRequestLocale(locale);
   const sp = await searchParams;
 
-  const category = await TaxonomyDAL.public().categoryBySlug(categorySlug);
+  const category = await cachedCategoryBySlug(categorySlug);
   if (!category) notFound();
 
   const definitions = await AttributeDAL.public().definitionsByCategory(category.id);

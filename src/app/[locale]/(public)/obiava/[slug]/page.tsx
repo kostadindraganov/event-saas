@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { JsonLd } from "@/components/catalog/json-ld";
 import { ListingGallery } from "@/components/catalog/listing-gallery";
 import { PackageCard } from "@/components/catalog/package-card";
-import { ListingDAL } from "@/data/catalog/listing.dal";
 import { cfImageUrl } from "@/lib/cf-image-url";
 import { formatEuro } from "@/lib/money";
 import { buildLocalizedUrls, publicMetadata } from "@/lib/seo";
@@ -16,7 +15,7 @@ type Props = { params: Promise<{ locale: string; slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale, slug } = await params;
-  const listing = await ListingDAL.public().getBySlug(slug);
+  const listing = await cachedListingBySlug(slug);
   if (!listing) return {};
   const categoryName = locale === "en" ? listing.categoryNameEn : listing.categoryNameBg;
   const title = `${listing.title} — ${categoryName}`;

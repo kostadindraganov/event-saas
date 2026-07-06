@@ -5,10 +5,9 @@ import { localizedSitemapEntry } from "@/lib/sitemap-urls";
 const CHUNK_SIZE = 50_000;
 
 export async function generateSitemaps() {
-  // ponytail: един chunk (id=0). ListingDAL.public().recent(limit) поддържа само limit, без offset —
-  // multi-chunk пагинация не е възможна с текущия DAL surface (contract.md, Задачи 2-5). При >50k
-  // публикувани обяви добави offset-базиран full-scan метод в PublicListingDAL и разшири масива тук.
-  return [{ id: "0" }];
+  const total = await ListingDAL.public().publishedCount();
+  const chunks = Math.max(1, Math.ceil(total / CHUNK_SIZE));
+  return Array.from({ length: chunks }, (_, id) => ({ id: String(id) }));
 }
 
 export default async function sitemap({
@@ -16,8 +15,8 @@ export default async function sitemap({
 }: {
   id: Promise<string>;
 }): Promise<MetadataRoute.Sitemap> {
-  await id; // единствен chunk засега — стойността не участва в заявката (виж бележката по-горе)
-  const listings = await ListingDAL.public().recent(CHUNK_SIZE);
+  const pageId = Number(await id);
+  const listings = await ListingDAL.public().sitemapEntries(pageId * CHUNK_SIZE, CHUNK_SIZE);
   return listings.map((l) =>
     localizedSitemapEntry(
       { pathname: "/obiava/[slug]", params: { slug: l.slug } },

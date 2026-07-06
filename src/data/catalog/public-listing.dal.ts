@@ -235,4 +235,20 @@ export class PublicListingDAL {
       .limit(Math.min(Math.max(limit, 1), 50));
     return rows.map(toCard);
   }
+
+  async sitemapEntries(offset: number, limit: number): Promise<{ slug: string; publishedAt: string }[]> {
+    const rows = await db
+      .select({ slug: listing.slug, publishedAt: listing.publishedAt })
+      .from(listing)
+      .where(eq(listing.status, "published"))
+      .orderBy(desc(listing.publishedAt))
+      .limit(Math.min(Math.max(limit, 1), 50_000))
+      .offset(Math.max(offset, 0));
+    return rows.map((r) => ({ slug: r.slug, publishedAt: r.publishedAt!.toISOString() }));
+  }
+
+  async publishedCount(): Promise<number> {
+    const [row] = await db.select({ total: count() }).from(listing).where(eq(listing.status, "published"));
+    return row?.total ?? 0;
+  }
 }

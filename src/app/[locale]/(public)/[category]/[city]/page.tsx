@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { TaxonomyDAL } from "@/data/catalog/taxonomy.dal";
 import { AttributeDAL } from "@/data/catalog/attribute.dal";
-import { cachedListingList } from "@/data/catalog/public-cached";
+import { cachedCategoryBySlug, cachedCityBySlug, cachedListingList } from "@/data/catalog/public-cached";
 import { parseListParams } from "@/lib/catalog-search-params";
 import { JsonLd } from "@/components/catalog/json-ld";
 import { ListingGrid } from "@/components/catalog/listing-grid";
@@ -22,8 +21,8 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { locale, category: categorySlug, city: citySlug } = await params;
   const { page } = await searchParams;
   const [cat, city] = await Promise.all([
-    TaxonomyDAL.public().categoryBySlug(categorySlug),
-    TaxonomyDAL.public().cityBySlug(citySlug),
+    cachedCategoryBySlug(categorySlug),
+    cachedCityBySlug(citySlug),
   ]);
   if (!cat || !city) return {};
   const categoryName = locale === "en" ? cat.nameEn : cat.nameBg;
@@ -61,8 +60,8 @@ export default async function GeoLandingPage({
   const sp = await searchParams;
 
   const [category, city] = await Promise.all([
-    TaxonomyDAL.public().categoryBySlug(categorySlug),
-    TaxonomyDAL.public().cityBySlug(citySlug),
+    cachedCategoryBySlug(categorySlug),
+    cachedCityBySlug(citySlug),
   ]);
   if (!category || !city) notFound();
 
