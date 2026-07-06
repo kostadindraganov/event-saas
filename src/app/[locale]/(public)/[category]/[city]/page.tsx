@@ -2,8 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { AttributeDAL } from "@/data/catalog/attribute.dal";
-import { cachedCategoryBySlug, cachedCityBySlug, cachedListingList } from "@/data/catalog/public-cached";
+import {
+  cachedCategoryBySlug,
+  cachedCityBySlug,
+  cachedDefinitionsByCategory,
+  cachedListingList,
+} from "@/data/catalog/public-cached";
 import { parseListParams } from "@/lib/catalog-search-params";
 import { JsonLd } from "@/components/catalog/json-ld";
 import { ListingGrid } from "@/components/catalog/listing-grid";
@@ -65,7 +69,7 @@ export default async function GeoLandingPage({
   ]);
   if (!category || !city) notFound();
 
-  const definitions = await AttributeDAL.public().definitionsByCategory(category.id);
+  const definitions = await cachedDefinitionsByCategory(category.id);
   const input = parseListParams(sp, category.id, definitions, { cityId: city.id });
   const result = await cachedListingList(input);
 

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { TaxonomyDAL } from "@/data/catalog/taxonomy.dal";
-import { cachedSearch } from "@/data/catalog/public-cached";
+import { cachedListCategories, cachedSearch } from "@/data/catalog/public-cached";
 import { parsePage, PER_PAGE } from "@/lib/catalog-search-params";
 import { ListingGrid } from "@/components/catalog/listing-grid";
 import { CatalogPagination } from "@/components/catalog/catalog-pagination";
@@ -43,7 +42,7 @@ export default async function SearchPage({
   const q = (Array.isArray(sp.q) ? sp.q[0] ?? "" : sp.q ?? "").trim();
   const page = parsePage(sp);
   const [categories, t] = await Promise.all([
-    TaxonomyDAL.public().listCategories(),
+    cachedListCategories(),
     getTranslations("Catalog"),
   ]);
   const result = q ? await cachedSearch(q, page, PER_PAGE) : null;

@@ -2,6 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { ListingDAL } from "./listing.dal";
 import { TaxonomyDAL } from "./taxonomy.dal";
+import { AttributeDAL } from "./attribute.dal";
 import type { PublicListingFilterInput } from "./public.dto";
 
 const HOUR = 3600;
@@ -66,6 +67,22 @@ export function cachedCategoriesWithCounts() {
   return unstable_cache(
     () => TaxonomyDAL.public().listCategoriesWithCounts(),
     ["categories-with-counts"],
+    { tags: ["listings"], revalidate: HOUR },
+  )();
+}
+
+export function cachedDefinitionsByCategory(categoryId: string) {
+  return unstable_cache(
+    () => AttributeDAL.public().definitionsByCategory(categoryId),
+    ["definitions-by-category", categoryId],
+    { tags: ["listings"], revalidate: HOUR },
+  )();
+}
+
+export function cachedListCategories() {
+  return unstable_cache(
+    () => TaxonomyDAL.public().listCategories(),
+    ["list-categories"],
     { tags: ["listings"], revalidate: HOUR },
   )();
 }

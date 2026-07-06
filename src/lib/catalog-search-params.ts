@@ -17,6 +17,14 @@ function intParam(v: string | string[] | undefined): number | undefined {
   return Number.isInteger(n) && n >= 0 ? n : undefined;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function uuidParam(v: string | string[] | undefined): string | undefined {
+  const raw = one(v);
+  if (raw === undefined || raw === "") return undefined;
+  return UUID_RE.test(raw) ? raw : undefined;
+}
+
 export function parseSort(sp: SP): "new" | "priceAsc" | "priceDesc" {
   const s = one(sp.sort);
   return s === "priceAsc" || s === "priceDesc" ? s : "new";
@@ -51,8 +59,8 @@ export function parseListParams(
 ): PublicListingFilterInput {
   return {
     categoryId,
-    cityId: override?.cityId ?? one(sp.city),
-    regionId: override?.regionId ?? one(sp.region),
+    cityId: override?.cityId ?? uuidParam(sp.city),
+    regionId: override?.regionId ?? uuidParam(sp.region),
     priceMinCents: intParam(sp.priceMin),
     priceMaxCents: intParam(sp.priceMax),
     attrs: parseAttrs(sp, definitions),

@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { AttributeDAL } from "@/data/catalog/attribute.dal";
-import { cachedCategoryBySlug, cachedListingList } from "@/data/catalog/public-cached";
+import { cachedCategoryBySlug, cachedDefinitionsByCategory, cachedListingList } from "@/data/catalog/public-cached";
 import { parseListParams } from "@/lib/catalog-search-params";
 import { JsonLd } from "@/components/catalog/json-ld";
 import { ListingGrid } from "@/components/catalog/listing-grid";
@@ -62,7 +61,7 @@ export default async function CategoryPage({
   const category = await cachedCategoryBySlug(categorySlug);
   if (!category) notFound();
 
-  const definitions = await AttributeDAL.public().definitionsByCategory(category.id);
+  const definitions = await cachedDefinitionsByCategory(category.id);
   const input = parseListParams(sp, category.id, definitions);
   const result = await cachedListingList(input);
 

@@ -59,17 +59,33 @@ export const catalogRouter = createTRPCRouter({
       .query(({ input }) => AttributeDAL.public().definitionsByCategory(input.categoryId)),
     setValues: protectedProcedure
       .input(SetAttributeValuesInputSchema)
-      .mutation(({ ctx, input }) => AttributeDAL.for(ctx.user).setValues(input.listingId, input.values)),
+      .mutation(async ({ ctx, input }) => {
+        const r = await AttributeDAL.for(ctx.user).setValues(input.listingId, input.values);
+        revalidateTag("listings", { expire: 0 });
+        return r;
+      }),
     getValues: protectedProcedure
       .input(z.object({ listingId: z.uuid() }))
       .query(({ ctx, input }) => AttributeDAL.for(ctx.user).getValues(input.listingId)),
   }),
   package: createTRPCRouter({
-    create: protectedProcedure.input(PackageInputSchema).mutation(({ ctx, input }) => PackageDAL.for(ctx.user).create(input)),
+    create: protectedProcedure.input(PackageInputSchema).mutation(async ({ ctx, input }) => {
+      const r = await PackageDAL.for(ctx.user).create(input);
+      revalidateTag("listings", { expire: 0 });
+      return r;
+    }),
     update: protectedProcedure
       .input(PackageInputSchema.partial().omit({ listingId: true }).extend({ id: z.uuid() }))
-      .mutation(({ ctx, input }) => PackageDAL.for(ctx.user).update(input)),
-    remove: protectedProcedure.input(byId).mutation(({ ctx, input }) => PackageDAL.for(ctx.user).remove(input.id)),
+      .mutation(async ({ ctx, input }) => {
+        const r = await PackageDAL.for(ctx.user).update(input);
+        revalidateTag("listings", { expire: 0 });
+        return r;
+      }),
+    remove: protectedProcedure.input(byId).mutation(async ({ ctx, input }) => {
+      const r = await PackageDAL.for(ctx.user).remove(input.id);
+      revalidateTag("listings", { expire: 0 });
+      return r;
+    }),
     listByListing: protectedProcedure
       .input(z.object({ listingId: z.uuid() }))
       .query(({ ctx, input }) => PackageDAL.for(ctx.user).listByListing(input.listingId)),
@@ -77,8 +93,16 @@ export const catalogRouter = createTRPCRouter({
   video: createTRPCRouter({
     add: protectedProcedure
       .input(z.object({ listingId: z.uuid(), url: z.url() }))
-      .mutation(({ ctx, input }) => VideoDAL.for(ctx.user).add(input.listingId, input.url)),
-    remove: protectedProcedure.input(byId).mutation(({ ctx, input }) => VideoDAL.for(ctx.user).remove(input.id)),
+      .mutation(async ({ ctx, input }) => {
+        const r = await VideoDAL.for(ctx.user).add(input.listingId, input.url);
+        revalidateTag("listings", { expire: 0 });
+        return r;
+      }),
+    remove: protectedProcedure.input(byId).mutation(async ({ ctx, input }) => {
+      const r = await VideoDAL.for(ctx.user).remove(input.id);
+      revalidateTag("listings", { expire: 0 });
+      return r;
+    }),
     listByListing: protectedProcedure
       .input(z.object({ listingId: z.uuid() }))
       .query(({ ctx, input }) => VideoDAL.for(ctx.user).listByListing(input.listingId)),

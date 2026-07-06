@@ -25,12 +25,26 @@ test("parseAttrs only showAsFilter defs", () => {
 });
 
 test("parseListParams reads cents from URL", () => {
-  const input = parseListParams({ priceMin: "5000", priceMax: "20000", city: "c1" }, "cat1", defs);
+  const input = parseListParams(
+    { priceMin: "5000", priceMax: "20000", city: "11111111-1111-1111-1111-111111111111" },
+    "cat1",
+    defs,
+  );
   expect(input.categoryId).toBe("cat1");
-  expect(input.cityId).toBe("c1");
+  expect(input.cityId).toBe("11111111-1111-1111-1111-111111111111");
   expect(input.priceMinCents).toBe(5000);
   expect(input.priceMaxCents).toBe(20000);
   expect(input.perPage).toBe(24);
+});
+
+test("parseListParams junk city → no cityId (guards against Postgres 22P02)", () => {
+  const input = parseListParams({ city: "not-a-uuid" }, "cat1", defs);
+  expect(input.cityId).toBeUndefined();
+});
+
+test("parseListParams valid uuid city → present", () => {
+  const input = parseListParams({ city: "11111111-1111-1111-1111-111111111111" }, "cat1", defs);
+  expect(input.cityId).toBe("11111111-1111-1111-1111-111111111111");
 });
 
 test("parseListParams override wins", () => {
