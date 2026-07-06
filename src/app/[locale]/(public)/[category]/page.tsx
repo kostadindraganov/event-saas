@@ -8,6 +8,7 @@ import { parseListParams } from "@/lib/catalog-search-params";
 import { ListingGrid } from "@/components/catalog/listing-grid";
 import { CatalogSort } from "@/components/catalog/catalog-sort";
 import { CatalogPagination } from "@/components/catalog/catalog-pagination";
+import { FiltersPanel, type FilterState } from "@/components/catalog/filters-panel";
 
 export default async function CategoryPage({
   params,
@@ -26,6 +27,13 @@ export default async function CategoryPage({
   const definitions = await AttributeDAL.public().definitionsByCategory(category.id);
   const input = parseListParams(sp, category.id, definitions);
   const result = await cachedListingList(input);
+
+  const current: FilterState = {
+    cityId: input.cityId,
+    priceMinCents: input.priceMinCents,
+    priceMaxCents: input.priceMaxCents,
+    attrs: Object.fromEntries((input.attrs ?? []).map((a) => [a.definitionId, a.values])),
+  };
 
   const t = await getTranslations("Catalog");
   const categoryName = locale === "bg" ? category.nameBg : category.nameEn;
@@ -53,7 +61,9 @@ export default async function CategoryPage({
       </div>
 
       <div className="flex flex-col gap-8 lg:flex-row">
-        {/* Задача 10 монтира <FiltersPanel> тук */}
+        <div className="lg:sticky lg:top-20 lg:self-start">
+          <FiltersPanel definitions={definitions} current={current} />
+        </div>
         <div className="min-w-0 flex-1">
           {result.items.length > 0 ? (
             <>
