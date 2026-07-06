@@ -222,4 +222,17 @@ export class PublicListingDAL {
     const [row] = await db.select({ total: count() }).from(listing).where(where);
     return { items: rows.map(toCard), total: row?.total ?? 0, page: pg, perPage: pp };
   }
+
+  async recent(limit: number): Promise<PublicListingCardDTO[]> {
+    const rows = await db
+      .select(cardColumns)
+      .from(listing)
+      .innerJoin(category, eq(listing.categoryId, category.id))
+      .innerJoin(city, eq(listing.cityId, city.id))
+      .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
+      .where(eq(listing.status, "published"))
+      .orderBy(desc(listing.publishedAt))
+      .limit(Math.min(Math.max(limit, 1), 50));
+    return rows.map(toCard);
+  }
 }
