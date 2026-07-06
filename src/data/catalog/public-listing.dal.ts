@@ -1,12 +1,13 @@
 import "server-only";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   attributeDefinition, category, city, listing, listingAttribute,
   listingImage, listingServiceRegion, listingVideo, region, servicePackage,
 } from "@/db/schema";
 import type {
-  PublicListingCardDTO, PublicListingDetailDTO, PublicPackageDTO,
+  PublicListingCardDTO, PublicListingDetailDTO, PublicListingFilterInput,
+  PublicListingPage, PublicPackageDTO,
 } from "./public.dto";
 
 const cardColumns = {
@@ -142,5 +143,58 @@ export class PublicListingDAL {
       packages: packageDTOs,
       chips,
     };
+  }
+
+  async list(input: PublicListingFilterInput): Promise<PublicListingPage> {
+    const perPage = Math.min(Math.max(input.perPage, 1), 50);
+    const page = Math.max(input.page, 1);
+    const offset = (page - 1) * perPage;
+
+    const conds: SQL[] = [
+      eq(listing.status, "published"),
+      eq(listing.categoryId, input.categoryId),
+    ];
+    if (input.cityId) conds.push(eq(listing.cityId, input.cityId));
+    if (input.regionId) {
+      // регион: обслужва конкретния регион ИЛИ покрива цялата страна
+      conds.push(sql`(${listing.wholeCountry} = true or exists (
+        select 1 from ${listingServiceRegion} lsr
+        where lsr.listing_id = ${listing.id} and lsr.region_id = ${input.regionId}
+      ))`);
+    }
+    if (input.priceMinCents !== undefined) conds.push(gte(listing.priceFromCents, input.priceMinCents));
+    if (input.priceMaxCents !== undefined) conds.push(lte(listing.priceFromCents, input.priceMaxCents));
+    for (const attr of input.attrs ?? []) {
+      if (attr.values.length === 0) continue;
+      // jsonb `?|` съвпада и за скаларен string, и за масив (single/multi)
+      const vals = sql.join(attr.values.map((v) => sql`${v}`), sql`, `);
+      conds.push(sql`exists (
+        select 1 from ${listingAttribute} la
+        where la.listing_id = ${listing.id}
+          and la.attribute_definition_id = ${attr.definitionId}
+          and la.value ?| array[${vals}]
+      )`);
+    }
+    const where = and(...conds);
+
+    const orderBy =
+      input.sort === "priceAsc" ? [asc(listing.priceFromCents)]
+      : input.sort === "priceDesc" ? [desc(listing.priceFromCents)]
+      : [desc(listing.publishedAt)];
+
+    const rows = await db
+      .select(cardColumns)
+      .from(listing)
+      .innerJoin(category, eq(listing.categoryId, category.id))
+      .innerJoin(city, eq(listing.cityId, city.id))
+      .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
+      .where(where)
+      .orderBy(...orderBy)
+      .limit(perPage)
+      .offset(offset);
+
+    const [row] = await db.select({ total: count() }).from(listing).where(where);
+
+    return { items: rows.map(toCard), total: row?.total ?? 0, page, perPage };
   }
 }
