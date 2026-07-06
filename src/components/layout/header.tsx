@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 export function Header() {
   const t = useTranslations("Common");
   const tVendor = useTranslations("Vendor");
+  const tMsg = useTranslations("Messages");
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
@@ -28,6 +29,12 @@ export function Header() {
           </Button>
           {session ? (
             <>
+              <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+                <Link href="/profil/izbrani">{tMsg("navSaved")}</Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+                <Link href="/profil/saobshtenia">{tMsg("navMessages")}</Link>
+              </Button>
               <Button asChild variant="ghost" size="sm">
                 <Link href="/profil/dostavchik/obiavi">{tVendor("myListings")}</Link>
               </Button>

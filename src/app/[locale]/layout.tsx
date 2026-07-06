@@ -5,6 +5,7 @@ import { setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
 import { TRPCReactProvider } from "@/trpc/client";
 import { Header } from "@/components/layout/header";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { Toaster } from "@/components/ui/sonner";
 import { Cormorant, Inter } from "next/font/google";
 import { getBaseUrl } from "@/lib/seo";
@@ -37,11 +38,12 @@ export default async function LocaleLayout({
   setRequestLocale(locale);
   return (
     <html lang={locale}>
-      <body className={`${inter.variable} ${cormorant.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} ${cormorant.variable} font-sans antialiased pb-16 md:pb-0`}>
         <NextIntlClientProvider>
           <TRPCReactProvider>
             <Header />
             {children}
+            <MobileBottomNav />
             <Toaster />
           </TRPCReactProvider>
         </NextIntlClientProvider>
