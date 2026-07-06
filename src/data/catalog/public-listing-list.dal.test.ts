@@ -11,6 +11,7 @@ import type { PublicListingFilterInput } from "./public.dto";
 let owner: SessionUser;
 let ownerId: string, categoryId: string, otherCategoryId: string;
 let cityA: string, cityB: string, styleDefId: string;
+let draftId: string;
 // ponytail: споделена dev Neon — други тестове/E2E публикуват в същата категория
 // успоредно, затова асертваме върху id-тата на seed-натите тук обяви, не върху
 // глобални бройки/позиции.
@@ -49,6 +50,7 @@ beforeAll(async () => {
   await new Promise((r) => setTimeout(r, 10));
   const skapa = await mk("Обява Скъпа", cityB, 90000, ["classic"]);
   const draft = await dal.createDraft({ title: "Обява Чернова", categoryId, cityId: cityA });
+  draftId = draft.id;
   await PackageDAL.for(owner).create({ listingId: draft.id, name: "П", priceFromCents: 5000 });
   // остава draft — не се брои
   seeded.евтина = evtina.id;
@@ -66,6 +68,7 @@ test("категория: само published, total коректен", async () 
   const seededInPage = page.items.filter((i) => seededIds.has(i.id));
   expect(seededInPage).toHaveLength(3); // и трите published seed-нати обяви присъстват
   expect(page.total).toBeGreaterThanOrEqual(3);
+  expect(page.items.some((i) => i.id === draftId)).toBe(false);
   expect(page.items.every((i) => i.categorySlug === "fotografi")).toBe(true);
 });
 
