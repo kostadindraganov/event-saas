@@ -50,6 +50,7 @@ export function DowngradeListingPicker({ listings }: { listings: SystemHiddenLis
         </fieldset>
         {error && <p role="alert" className="text-sm text-destructive">{t("error")}</p>}
         <Button
+          className="h-11"
           disabled={!selected || keep.isPending}
           onClick={() => {
             if (!selected) return;

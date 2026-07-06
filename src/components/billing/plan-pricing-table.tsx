@@ -53,11 +53,11 @@ export function PlanPricingTable() {
               </ul>
               <p className="text-xs text-muted-foreground">{t("priceHint")}</p>
               {session ? (
-                <Button onClick={() => { void authClient.checkout({ slug: CHECKOUT_SLUGS[plan][cycle] }); }}>
+                <Button className="h-11" onClick={() => { void authClient.checkout({ slug: CHECKOUT_SLUGS[plan][cycle] }); }}>
                   {t("checkoutCta")}
                 </Button>
               ) : (
-                <Button asChild>
+                <Button asChild className="h-11">
                   <Link href="/vhod">{t("checkoutCta")}</Link>
                 </Button>
               )}
