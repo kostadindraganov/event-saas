@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useTRPC } from "@/trpc/client";
 import type { ListingDTO } from "@/data/catalog/catalog.dto";
 import type { AttributeDefinitionDTO } from "@/data/catalog/attribute.dto";
@@ -38,7 +38,8 @@ export function StepPregled({
   const locale = useLocale();
   const trpc = useTRPC();
   const router = useRouter();
-  const [error, setError] = useState(false);
+  const tb = useTranslations("Billing");
+  const [errorKey, setErrorKey] = useState<"errorSave" | "noSubscription" | "limitReached" | null>(null);
 
   const { data: images } = useQuery(trpc.media.listByListing.queryOptions({ listingId: listing.id }));
   const { data: videos } = useQuery(trpc.catalog.video.listByListing.queryOptions({ listingId: listing.id }));
@@ -48,13 +49,19 @@ export function StepPregled({
   const submit = useMutation(
     trpc.catalog.listing.submit.mutationOptions({
       onSuccess: () => { toast.success(t("published")); router.refresh(); },
-      onError: () => setError(true),
+      // billing entitlement грешки (err.data?.code==="FORBIDDEN" + err.message) → отделен CTA към абонамента;
+      // idiom по inquiry-form.tsx (err.data?.code branch)
+      onError: (err) => {
+        if (err.data?.code === "FORBIDDEN" && err.message === "NO_SUBSCRIPTION") setErrorKey("noSubscription");
+        else if (err.data?.code === "FORBIDDEN" && err.message === "LIMIT_REACHED") setErrorKey("limitReached");
+        else setErrorKey("errorSave");
+      },
     }),
   );
   const hide = useMutation(
     trpc.catalog.listing.hide.mutationOptions({
       onSuccess: () => router.refresh(),
-      onError: () => setError(true),
+      onError: () => setErrorKey("errorSave"),
     }),
   );
 
@@ -92,15 +99,25 @@ export function StepPregled({
           })}
         </ul>
       )}
-      {error && <p role="alert" className="text-sm text-destructive">{tv("errorSave")}</p>}
+      {errorKey && (
+        <p role="alert" className="text-sm text-destructive">
+          {errorKey === "errorSave" ? tv("errorSave") : tb(errorKey === "noSubscription" ? "gate.noSubscription" : "gate.limitReached")}
+          {errorKey !== "errorSave" && (
+            <>
+              {" "}
+              <Link href="/profil/dostavchik/abonament" className="underline">{tb("gate.cta")}</Link>
+            </>
+          )}
+        </p>
+      )}
       {canPublish ? (
-        <Button size="lg" disabled={submit.isPending} onClick={() => { setError(false); submit.mutate({ id: listing.id }); }}>
+        <Button size="lg" disabled={submit.isPending} onClick={() => { setErrorKey(null); submit.mutate({ id: listing.id }); }}>
           {submit.isPending ? t("publishing") : t("publish")}
         </Button>
       ) : listing.status === "published" ? (
         <div className="flex items-center gap-3">
           <p className="text-sm">{t("published")}</p>
-          <Button variant="outline" disabled={hide.isPending} onClick={() => { setError(false); hide.mutate({ id: listing.id }); }}>
+          <Button variant="outline" disabled={hide.isPending} onClick={() => { setErrorKey(null); hide.mutate({ id: listing.id }); }}>
             {tv("hide")}
           </Button>
         </div>
