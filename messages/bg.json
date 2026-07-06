@@ -100,5 +100,45 @@
       "yes": "Да",
       "no": "Не"
     }
+  },
+  "Catalog": {
+    "priceFrom": "от {price}",
+    "wholeCountry": "Цялата страна",
+    "breadcrumbHome": "Начало",
+    "resultsCount": "{count, plural, one {# обява} other {# обяви}}",
+    "sortLabel": "Подреждане",
+    "sortNew": "Най-нови",
+    "sortPriceAsc": "Цена: възходящо",
+    "sortPriceDesc": "Цена: низходящо",
+    "filters": "Филтри",
+    "filtersCity": "Град",
+    "filtersPrice": "Цена (€)",
+    "filtersPriceMin": "От",
+    "filtersPriceMax": "До",
+    "apply": "Приложи",
+    "reset": "Изчисти",
+    "empty": "Няма намерени обяви",
+    "emptyHint": "Опитай да премахнеш някои филтри.",
+    "pagination": "Страници",
+    "pagePrev": "Предишна",
+    "pageNext": "Следваща",
+    "seeAllInCategory": "Виж всички в {category}",
+    "inCity": "{category} в {city}",
+    "searchPlaceholder": "Търси фотограф, зала, кетъринг…",
+    "allCategories": "Всички категории",
+    "searchButton": "Търси",
+    "searchTitle": "Търсене",
+    "resultsForCount": "{count, plural, one {# резултат за „{q}“} other {# резултата за „{q}“}}",
+    "searchEmpty": "Няма резултати",
+    "searchHint": "Провери правописа или опитай по-общи думи."
+  },
+  "Listing": {
+    "wholeCountry": "Цялата страна",
+    "description": "Описание",
+    "packages": "Пакети",
+    "serviceArea": "Район на обслужване",
+    "videoLabel": "Видео",
+    "prevImage": "Предишна снимка",
+    "nextImage": "Следваща снимка"
   }
 }

@@ -100,5 +100,45 @@
       "yes": "Yes",
       "no": "No"
     }
+  },
+  "Catalog": {
+    "priceFrom": "from {price}",
+    "wholeCountry": "Whole country",
+    "breadcrumbHome": "Home",
+    "resultsCount": "{count, plural, one {# listing} other {# listings}}",
+    "sortLabel": "Sort",
+    "sortNew": "Newest",
+    "sortPriceAsc": "Price: low to high",
+    "sortPriceDesc": "Price: high to low",
+    "filters": "Filters",
+    "filtersCity": "City",
+    "filtersPrice": "Price (€)",
+    "filtersPriceMin": "Min",
+    "filtersPriceMax": "Max",
+    "apply": "Apply",
+    "reset": "Clear",
+    "empty": "No listings found",
+    "emptyHint": "Try removing some filters.",
+    "pagination": "Pages",
+    "pagePrev": "Previous",
+    "pageNext": "Next",
+    "seeAllInCategory": "See all in {category}",
+    "inCity": "{category} in {city}",
+    "searchPlaceholder": "Search photographer, venue, catering…",
+    "allCategories": "All categories",
+    "searchButton": "Search",
+    "searchTitle": "Search",
+    "resultsForCount": "{count, plural, one {# result for “{q}”} other {# results for “{q}”}}",
+    "searchEmpty": "No results",
+    "searchHint": "Check the spelling or try more general words."
+  },
+  "Listing": {
+    "wholeCountry": "Whole country",
+    "description": "Description",
+    "packages": "Packages",
+    "serviceArea": "Service area",
+    "videoLabel": "Video",
+    "prevImage": "Previous image",
+    "nextImage": "Next image"
   }
 }
