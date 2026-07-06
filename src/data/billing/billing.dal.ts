@@ -218,11 +218,15 @@ export class BillingDAL {
     let hidden = 0;
     const users: string[] = [];
     for (const { userId } of expired) {
-      const count = await db.transaction((tx) => hideAllPublished(tx, userId));
-      if (count > 0) {
-        hidden += count;
-        users.push(userId);
-        void notifyListingsHiddenEmail(userId, count).catch((e) => console.error("email failed", e));
+      try {
+        const count = await db.transaction((tx) => hideAllPublished(tx, userId));
+        if (count > 0) {
+          hidden += count;
+          users.push(userId);
+          void notifyListingsHiddenEmail(userId, count).catch((e) => console.error("email failed", e));
+        }
+      } catch (e) {
+        console.error("expireGracePeriods: fail за user", userId, e); // грешка на един не убива batch-а
       }
     }
     return { hidden, users };

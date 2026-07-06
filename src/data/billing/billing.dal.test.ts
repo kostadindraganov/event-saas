@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestUser, cleanupTestUser, createTestSubscription, getTestCityId, testDb } from "@/test/db-helpers";
+import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import type { SessionUser } from "@/data/users/require-user";
@@ -206,4 +207,27 @@ test("expireGracePeriods: изтекъл гратис → скрива и вкл
   // повторен run между два реда не удвоява скриването (hideAllPublished филтрира WHERE status='published')
   const second = await BillingDAL.expireGracePeriods();
   expect(second.users).not.toContain(expiredOwner.id);
+});
+
+test("expireGracePeriods: per-user грешка не убива batch-а (resolve, не throw); след fix-а скрива на следващия run", async () => {
+  const { user, id } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  await createTestSubscription(id, {
+    plan: "standard",
+    status: "past_due",
+    graceUntil: new Date(Date.now() - 24 * 60 * 60 * 1000),
+  });
+  const lid = await publishedListing(user, categoryA!, cityId, "Batch Resilience Тест");
+
+  // всяка per-user транзакция гърми → методът пак resolve-ва (catch е вътре в цикъла)
+  const spy = vi.spyOn(db, "transaction").mockRejectedValue(new Error("boom"));
+  await expect(BillingDAL.expireGracePeriods()).resolves.toEqual({ hidden: 0, users: [] });
+  spy.mockRestore();
+
+  // без грешката следващият run си скрива нормално
+  const result = await BillingDAL.expireGracePeriods();
+  expect(result.users).toContain(id);
+  const [row] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, lid));
+  expect(row?.status).toBe("hidden");
 });

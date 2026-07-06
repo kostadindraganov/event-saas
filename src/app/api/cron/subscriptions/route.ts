@@ -8,6 +8,11 @@ export async function POST(req: Request) {
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ error: "UNAUTHORIZED" }, { status: 401 });
   }
-  const { hidden } = await BillingDAL.expireGracePeriods();
-  return Response.json({ hidden });
+  try {
+    const { hidden } = await BillingDAL.expireGracePeriods();
+    return Response.json({ hidden });
+  } catch (e) {
+    console.error("cron subscriptions failed", e);
+    return Response.json({ error: "INTERNAL" }, { status: 500 });
+  }
 }

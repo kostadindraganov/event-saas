@@ -5,6 +5,7 @@ import { listing } from "@/db/schema";
 import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId } from "@/test/db-helpers";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import type { SessionUser } from "@/data/users/require-user";
+import { BillingDAL } from "@/data/billing/billing.dal";
 import { POST } from "./route";
 
 let userId: string;
@@ -43,6 +44,14 @@ test("401 без валиден CRON_SECRET", async () => {
   expect(res.status).toBe(401);
   const res2 = await POST(req("Bearer wrong"));
   expect(res2.status).toBe(401);
+});
+
+test("вътрешна грешка → 500 с generic body", async () => {
+  const spy = vi.spyOn(BillingDAL, "expireGracePeriods").mockRejectedValueOnce(new Error("boom"));
+  const res = await POST(req("Bearer test-cron-secret"));
+  expect(res.status).toBe(500);
+  expect(await res.json()).toEqual({ error: "INTERNAL" });
+  spy.mockRestore();
 });
 
 test("изтекъл гратис → published обявите се скриват (hiddenBySystem) + {hidden: n}", async () => {
