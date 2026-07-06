@@ -10,7 +10,7 @@ import type {
   PublicListingPage, PublicPackageDTO,
 } from "./public.dto";
 
-const cardColumns = {
+export const cardColumns = {
   id: listing.id,
   slug: listing.slug,
   title: listing.title,
@@ -34,7 +34,7 @@ type CardRow = {
   coverCfImageId: string | null; publishedAt: Date | null;
 };
 
-function toCard(r: CardRow): PublicListingCardDTO {
+export function toCard(r: CardRow): PublicListingCardDTO {
   return {
     id: r.id,
     slug: r.slug,
