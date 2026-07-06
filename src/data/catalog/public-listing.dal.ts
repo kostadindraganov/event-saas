@@ -3,7 +3,7 @@ import { and, asc, count, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm"
 import { db } from "@/db";
 import {
   attributeDefinition, category, city, listing, listingAttribute,
-  listingImage, listingServiceRegion, listingVideo, region, servicePackage,
+  listingImage, listingServiceRegion, listingVideo, region, servicePackage, user,
 } from "@/db/schema";
 import type {
   PublicListingCardDTO, PublicListingDetailDTO, PublicListingFilterInput,
@@ -82,10 +82,11 @@ function resolveChipValues(
 export class PublicListingDAL {
   async getBySlug(slug: string): Promise<PublicListingDetailDTO | null> {
     const [row] = await db
-      .select({ ...cardColumns, description: listing.description })
+      .select({ ...cardColumns, description: listing.description, vendorAvgResponseMinutes: user.avgResponseMinutes })
       .from(listing)
       .innerJoin(category, eq(listing.categoryId, category.id))
       .innerJoin(city, eq(listing.cityId, city.id))
+      .innerJoin(user, eq(listing.ownerId, user.id))
       .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
       .where(and(eq(listing.slug, slug), eq(listing.status, "published")));
     if (!row) return null;
@@ -142,6 +143,7 @@ export class PublicListingDAL {
       videos: videos.map((v) => ({ youtubeVideoId: v.youtubeId })),
       packages: packageDTOs,
       chips,
+      vendorAvgResponseMinutes: row.vendorAvgResponseMinutes,
     };
   }
 

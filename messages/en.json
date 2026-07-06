@@ -151,5 +151,39 @@
     "videoLabel": "Video",
     "prevImage": "Previous image",
     "nextImage": "Next image"
+  },
+  "Saved": {
+    "save": "Save",
+    "remove": "Remove from Saved",
+    "errorSave": "Something went wrong. Please try again.",
+    "title": "Saved",
+    "empty": "No saved listings yet",
+    "emptyHint": "Tap the heart on a listing to save it here."
+  },
+  "Messages": {
+    "title": "Messages",
+    "empty": "No messages yet",
+    "emptyHint": "Your inquiries to vendors will appear here.",
+    "unread": "{count, plural, one {# new} other {# new}}",
+    "inquiryTitle": "Send an inquiry",
+    "bodyLabel": "Message",
+    "bodyPlaceholder": "Hi, I'm interested in…",
+    "eventDateLabel": "Event date",
+    "phoneLabel": "Phone",
+    "phonePlaceholder": "+359…",
+    "send": "Send",
+    "sending": "Sending…",
+    "errorSend": "Message failed to send. Please try again.",
+    "successTitle": "Inquiry sent",
+    "viewConversation": "View conversation",
+    "loginToInquire": "Sign in to send an inquiry",
+    "ownListing": "You can't message your own listing",
+    "composePlaceholder": "Write a message…",
+    "back": "Back to messages",
+    "respondsWithin24h": "Responds within 24h",
+    "navSearch": "Search",
+    "navSaved": "Saved",
+    "navMessages": "Messages",
+    "navProfile": "Profile"
   }
 }

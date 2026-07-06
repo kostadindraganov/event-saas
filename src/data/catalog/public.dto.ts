@@ -35,6 +35,7 @@ export type PublicListingDetailDTO = PublicListingCardDTO & {
     valuesBg: string[];
     valuesEn: string[];
   }[];
+  vendorAvgResponseMinutes: number | null; // user.avgResponseMinutes на listing.ownerId; бадж при ≤1440
 };
 
 export type PublicListingFilterInput = {

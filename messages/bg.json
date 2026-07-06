@@ -151,5 +151,39 @@
     "videoLabel": "Видео",
     "prevImage": "Предишна снимка",
     "nextImage": "Следваща снимка"
+  },
+  "Saved": {
+    "save": "Запази",
+    "remove": "Премахни от Избрани",
+    "errorSave": "Нещо се обърка. Опитай пак.",
+    "title": "Избрани",
+    "empty": "Нямаш запазени обяви",
+    "emptyHint": "Докосни сърцето на обява, за да я запазиш тук."
+  },
+  "Messages": {
+    "title": "Съобщения",
+    "empty": "Нямаш съобщения",
+    "emptyHint": "Запитванията ти към вендори ще се появят тук.",
+    "unread": "{count, plural, one {# ново} other {# нови}}",
+    "inquiryTitle": "Изпрати запитване",
+    "bodyLabel": "Съобщение",
+    "bodyPlaceholder": "Здравейте, интересувам се от…",
+    "eventDateLabel": "Дата на събитието",
+    "phoneLabel": "Телефон",
+    "phonePlaceholder": "+359…",
+    "send": "Изпрати",
+    "sending": "Изпращане…",
+    "errorSend": "Съобщението не се изпрати. Опитай пак.",
+    "successTitle": "Запитването е изпратено",
+    "viewConversation": "Виж разговора",
+    "loginToInquire": "Влез, за да изпратиш запитване",
+    "ownListing": "Не можеш да пишеш на собствената си обява",
+    "composePlaceholder": "Напиши съобщение…",
+    "back": "Назад към съобщенията",
+    "respondsWithin24h": "Отговаря до 24 ч",
+    "navSearch": "Търси",
+    "navSaved": "Избрани",
+    "navMessages": "Съобщения",
+    "navProfile": "Профил"
   }
 }
