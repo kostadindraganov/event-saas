@@ -4,6 +4,7 @@ import { setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
 import { TRPCReactProvider } from "@/trpc/client";
 import { Header } from "@/components/layout/header";
+import { Toaster } from "@/components/ui/sonner";
 import { Cormorant, Inter } from "next/font/google";
 import "../globals.css";
 
@@ -35,6 +36,7 @@ export default async function LocaleLayout({
           <TRPCReactProvider>
             <Header />
             {children}
+            <Toaster />
           </TRPCReactProvider>
         </NextIntlClientProvider>
       </body>
