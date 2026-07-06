@@ -19,26 +19,26 @@ export const catalogRouter = createTRPCRouter({
       .input(ListingUpdateInputSchema)
       .mutation(async ({ ctx, input }) => {
         const r = await ListingDAL.for(ctx.user).update(input);
-        revalidateTag("listings", "max");
-        revalidateTag(`listing:${r.slug}`, "max");
+        revalidateTag("listings", { expire: 0 });
+        revalidateTag(`listing:${r.slug}`, { expire: 0 });
         return r;
       }),
     submit: protectedProcedure.input(byId).mutation(async ({ ctx, input }) => {
       const r = await ListingDAL.for(ctx.user).submit(input.id);
-      revalidateTag("listings", "max");
-      revalidateTag(`listing:${r.slug}`, "max");
+      revalidateTag("listings", { expire: 0 });
+      revalidateTag(`listing:${r.slug}`, { expire: 0 });
       return r;
     }),
     hide: protectedProcedure.input(byId).mutation(async ({ ctx, input }) => {
       const r = await ListingDAL.for(ctx.user).hide(input.id);
-      revalidateTag("listings", "max");
-      revalidateTag(`listing:${r.slug}`, "max");
+      revalidateTag("listings", { expire: 0 });
+      revalidateTag(`listing:${r.slug}`, { expire: 0 });
       return r;
     }),
     unhide: protectedProcedure.input(byId).mutation(async ({ ctx, input }) => {
       const r = await ListingDAL.for(ctx.user).unhide(input.id);
-      revalidateTag("listings", "max");
-      revalidateTag(`listing:${r.slug}`, "max");
+      revalidateTag("listings", { expire: 0 });
+      revalidateTag(`listing:${r.slug}`, { expire: 0 });
       return r;
     }),
     listMine: protectedProcedure.query(({ ctx }) => ListingDAL.for(ctx.user).listMine()),
