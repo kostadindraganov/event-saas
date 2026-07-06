@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
@@ -9,6 +10,43 @@ import { ListingGrid } from "@/components/catalog/listing-grid";
 import { CatalogSort } from "@/components/catalog/catalog-sort";
 import { CatalogPagination } from "@/components/catalog/catalog-pagination";
 import { FiltersPanel, type FilterState } from "@/components/catalog/filters-panel";
+import { publicMetadata } from "@/lib/seo";
+
+type Props = {
+  params: Promise<{ locale: string; category: string; city: string }>;
+  searchParams: Promise<{ page?: string; [key: string]: string | string[] | undefined }>;
+};
+
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const { locale, category: categorySlug, city: citySlug } = await params;
+  const { page } = await searchParams;
+  const [cat, city] = await Promise.all([
+    TaxonomyDAL.public().categoryBySlug(categorySlug),
+    TaxonomyDAL.public().cityBySlug(citySlug),
+  ]);
+  if (!cat || !city) return {};
+  const categoryName = locale === "en" ? cat.nameEn : cat.nameBg;
+  const title =
+    locale === "en" ? `${categoryName} in ${city.name}` : `${categoryName} в ${city.name}`;
+  const description =
+    locale === "en"
+      ? `${categoryName} in ${city.name} — compare providers on EVENT-REVIEW.`
+      : `${categoryName} в ${city.name} — сравни доставчици в EVENT-REVIEW.`;
+  const meta = publicMetadata({
+    locale,
+    href: { pathname: "/[category]/[city]", params: { category: categorySlug, city: citySlug } },
+    title,
+    description,
+  });
+  const pageNum = Number(page) || 1;
+  if (pageNum > 1) {
+    return {
+      ...meta,
+      alternates: { ...meta.alternates, canonical: `${meta.alternates?.canonical}?page=${pageNum}` },
+    };
+  }
+  return meta;
+}
 
 export default async function GeoLandingPage({
   params,

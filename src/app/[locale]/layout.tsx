@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { notFound } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
@@ -6,6 +7,7 @@ import { TRPCReactProvider } from "@/trpc/client";
 import { Header } from "@/components/layout/header";
 import { Toaster } from "@/components/ui/sonner";
 import { Cormorant, Inter } from "next/font/google";
+import { getBaseUrl } from "@/lib/seo";
 import "../globals.css";
 
 const inter = Inter({ subsets: ["latin", "cyrillic"], variable: "--font-inter" });
@@ -14,6 +16,10 @@ const cormorant = Cormorant({
   weight: ["500", "600"],
   variable: "--font-cormorant",
 });
+
+export const metadata: Metadata = {
+  metadataBase: new URL(getBaseUrl()),
+};
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));

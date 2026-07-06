@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { TaxonomyDAL } from "@/data/catalog/taxonomy.dal";
 import { cachedSearch } from "@/data/catalog/public-cached";
@@ -5,6 +6,28 @@ import { parsePage, PER_PAGE } from "@/lib/catalog-search-params";
 import { ListingGrid } from "@/components/catalog/listing-grid";
 import { CatalogPagination } from "@/components/catalog/catalog-pagination";
 import { SearchHero } from "@/components/catalog/search-hero";
+import { publicMetadata } from "@/lib/seo";
+
+type Props = {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ q?: string; [key: string]: string | string[] | undefined }>;
+};
+
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const { q } = await searchParams;
+  const title = locale === "en" ? "Search" : "Търсене";
+  const description =
+    locale === "en"
+      ? "Search all wedding service providers on EVENT-REVIEW."
+      : "Търси сред всички доставчици на сватбени услуги в EVENT-REVIEW.";
+  const meta = publicMetadata({ locale, href: { pathname: "/tarsene" }, title, description });
+  // Резултатни страници (?q=...) не се индексират — само празният вход на /tarsene е canonical landing.
+  if (typeof q === "string" && q.trim().length > 0) {
+    return { ...meta, robots: { index: false, follow: true } };
+  }
+  return meta;
+}
 
 export default async function SearchPage({
   params,

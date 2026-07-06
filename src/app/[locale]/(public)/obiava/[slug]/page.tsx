@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Star } from "lucide-react";
@@ -5,6 +6,28 @@ import { cachedListingBySlug } from "@/data/catalog/public-cached";
 import { Badge } from "@/components/ui/badge";
 import { ListingGallery } from "@/components/catalog/listing-gallery";
 import { PackageCard } from "@/components/catalog/package-card";
+import { ListingDAL } from "@/data/catalog/listing.dal";
+import { cfImageUrl } from "@/lib/cf-image-url";
+import { publicMetadata } from "@/lib/seo";
+
+type Props = { params: Promise<{ locale: string; slug: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale, slug } = await params;
+  const listing = await ListingDAL.public().getBySlug(slug);
+  if (!listing) return {};
+  const categoryName = locale === "en" ? listing.categoryNameEn : listing.categoryNameBg;
+  const title = `${listing.title} — ${categoryName}`;
+  const description = listing.description.slice(0, 160);
+  const ogImage = listing.coverCfImageId ? (cfImageUrl(listing.coverCfImageId) ?? undefined) : undefined;
+  return publicMetadata({
+    locale,
+    href: { pathname: "/obiava/[slug]", params: { slug } },
+    title,
+    description,
+    ogImage,
+  });
+}
 
 export default async function ListingPage({
   params,

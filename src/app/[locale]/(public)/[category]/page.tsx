@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
@@ -9,6 +10,43 @@ import { ListingGrid } from "@/components/catalog/listing-grid";
 import { CatalogSort } from "@/components/catalog/catalog-sort";
 import { CatalogPagination } from "@/components/catalog/catalog-pagination";
 import { FiltersPanel, type FilterState } from "@/components/catalog/filters-panel";
+import { publicMetadata } from "@/lib/seo";
+
+type Props = {
+  params: Promise<{ locale: string; category: string }>;
+  searchParams: Promise<{ page?: string; [key: string]: string | string[] | undefined }>;
+};
+
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const { locale, category: categorySlug } = await params;
+  const { page } = await searchParams;
+  const cat = await TaxonomyDAL.public().categoryBySlug(categorySlug);
+  if (!cat) return {};
+  const title = locale === "en" ? cat.nameEn : cat.nameBg;
+  const description =
+    locale === "en"
+      ? `Find and compare ${cat.nameEn} for your wedding on EVENT-REVIEW.`
+      : `Намери и сравни доставчици на ${cat.nameBg} за твоята сватба в EVENT-REVIEW.`;
+  const meta = publicMetadata({
+    locale,
+    href: { pathname: "/[category]", params: { category: categorySlug } },
+    title,
+    description,
+  });
+  const pageNum = Number(page) || 1;
+  if (pageNum > 1) {
+    // Google депрекира rel=prev/next (2019) — самостоятелен canonical на страница N е достатъчен;
+    // няма отделни <link rel="prev"/"next"> тагове.
+    return {
+      ...meta,
+      alternates: { ...meta.alternates, canonical: `${meta.alternates?.canonical}?page=${pageNum}` },
+    };
+  }
+  return meta;
+}
+
+// (Невалиден `categorySlug` връща `{}` от `generateMetadata` — самата страница вика
+// `notFound()` и определя реалния 404 отговор; празен `Metadata` обект тук не пречи.)
 
 export default async function CategoryPage({
   params,

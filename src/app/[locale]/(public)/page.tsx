@@ -1,10 +1,30 @@
+import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { cachedCategoriesWithCounts } from "@/data/catalog/public-cached";
 import { Button } from "@/components/ui/button";
 import { SearchHero } from "@/components/catalog/search-hero";
+import { publicMetadata } from "@/lib/seo";
 
 export const revalidate = 3600;
+
+type Props = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const title =
+    locale === "en" ? "EVENT-REVIEW — Wedding services" : "EVENT-REVIEW — Сватбени услуги";
+  const description =
+    locale === "en"
+      ? "Find and compare photographers, venues and other wedding service providers."
+      : "Намери и сравни фотографи, зали и други доставчици на сватбени услуги.";
+  return publicMetadata({ locale, href: { pathname: "/" }, title, description });
+}
+
+// ponytail: title/description са директни ternary-и по locale, не минават през next-intl messages —
+// Catalog/Home namespace-ите от Задача 8/14 не са SEO-фокусирани и добавянето на нови message ключове
+// тук би създало coupling с чужда задача извън обхвата на тази секция; ако маркетингът поиска
+// редактируеми SEO текстове по-късно, migrira към messages.
 
 export default async function HomePage({
   params,
