@@ -197,4 +197,29 @@ export class PublicListingDAL {
 
     return { items: rows.map(toCard), total: row?.total ?? 0, page, perPage };
   }
+
+  async search(q: string, page: number, perPage: number): Promise<PublicListingPage> {
+    const trimmed = q.trim();
+    const pp = Math.min(Math.max(perPage, 1), 50);
+    const pg = Math.max(page, 1);
+    if (!trimmed) return { items: [], total: 0, page: pg, perPage: pp };
+
+    // websearch_to_tsquery: безопасно за произволен вход, без синтактични грешки
+    const tsq = sql`websearch_to_tsquery('simple', ${trimmed})`;
+    const where = and(eq(listing.status, "published"), sql`${listing.searchTsv} @@ ${tsq}`);
+
+    const rows = await db
+      .select(cardColumns)
+      .from(listing)
+      .innerJoin(category, eq(listing.categoryId, category.id))
+      .innerJoin(city, eq(listing.cityId, city.id))
+      .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
+      .where(where)
+      .orderBy(desc(listing.publishedAt))
+      .limit(pp)
+      .offset((pg - 1) * pp);
+
+    const [row] = await db.select({ total: count() }).from(listing).where(where);
+    return { items: rows.map(toCard), total: row?.total ?? 0, page: pg, perPage: pp };
+  }
 }

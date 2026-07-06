@@ -15,6 +15,13 @@
       "when": 1783344401782,
       "tag": "0001_charming_power_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783346080116,
+      "tag": "0002_lively_callisto",
+      "breakpoints": true
     }
   ]
 }

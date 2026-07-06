@@ -1,9 +1,16 @@
 import {
-  boolean, index, integer, jsonb, numeric, pgEnum, pgTable, primaryKey,
-  text, timestamp, unique, uuid,
+  boolean, customType, index, integer, jsonb, numeric, pgEnum, pgTable,
+  primaryKey, text, timestamp, unique, uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { user } from "./auth";
+
+// ponytail: drizzle-orm няма native tsvector; минимален custom тип за generated FTS колона
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 export const listingStatus = pgEnum("listing_status", [
   "draft", "pending_approval", "published", "hidden", "rejected", "removed",
@@ -62,6 +69,9 @@ export const listing = pgTable("listing", {
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  searchTsv: tsvector("search_tsv").generatedAlwaysAs(
+    sql`to_tsvector('simple', coalesce("title", '') || ' ' || coalesce("description", ''))`,
+  ),
 }, (t) => [
   // hot path: /[category] листинг, сортиран по нови; partial → пропуска draft/hidden редовете
   index("listing_cat_pub_idx").on(t.categoryId, t.publishedAt.desc()).where(sql`${t.status} = 'published'`),
@@ -69,6 +79,7 @@ export const listing = pgTable("listing", {
   index("listing_city_pub_idx").on(t.cityId, t.publishedAt.desc()).where(sql`${t.status} = 'published'`),
   // начална «нови» + глобална пагинация/sitemap
   index("listing_pub_idx").on(t.publishedAt.desc()).where(sql`${t.status} = 'published'`),
+  index("listing_search_tsv_idx").using("gin", t.searchTsv),
 ]);
 
 export const listingServiceRegion = pgTable(
