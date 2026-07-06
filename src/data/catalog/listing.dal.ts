@@ -6,6 +6,7 @@ import { slugifyBg } from "@/lib/slug";
 import type { SessionUser } from "@/data/users/require-user";
 import { canCreateListing, canEditListing, canSubmitListing } from "./catalog.policy";
 import type { ListingCreateInput, ListingDTO, ListingSummaryDTO, ListingUpdateInput } from "./catalog.dto";
+import { PublicListingDAL } from "./public-listing.dal";
 
 type ListingRow = typeof listing.$inferSelect;
 
@@ -33,6 +34,10 @@ export class ListingDAL {
 
   static for(user: SessionUser) {
     return new ListingDAL(user);
+  }
+
+  static public(): PublicListingDAL {
+    return new PublicListingDAL();
   }
 
   private async ownedRow(id: string): Promise<ListingRow> {
