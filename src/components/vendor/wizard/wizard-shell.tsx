@@ -3,6 +3,7 @@ import { useSearchParams } from "next/navigation";
 import type { ListingDTO } from "@/data/catalog/catalog.dto";
 import type { AttributeDefinitionDTO } from "@/data/catalog/attribute.dto";
 import { WizardNav, STEPS, type WizardStep } from "./wizard-nav";
+import { StepOsnovni } from "./step-osnovni";
 
 export function WizardShell({
   listing,
@@ -20,7 +21,7 @@ export function WizardShell({
       <h1 className="font-serif text-3xl">{listing.title}</h1>
       <WizardNav current={step} listingId={listing.id} position="top" />
       <section>
-        {step === "osnovni" && <p className="text-muted-foreground">…</p>}
+        {step === "osnovni" && <StepOsnovni listing={listing} />}
         {step === "atributi" && <p className="text-muted-foreground">…</p>}
         {step === "galeria" && <p className="text-muted-foreground">…</p>}
         {step === "paketi" && <p className="text-muted-foreground">…</p>}
