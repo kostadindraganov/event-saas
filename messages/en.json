@@ -187,5 +187,57 @@
     "navSaved": "Saved",
     "navMessages": "Messages",
     "navProfile": "Profile"
+  },
+  "Billing": {
+    "pageTitle": "Subscription",
+    "nav": {
+      "listings": "Listings",
+      "subscription": "Subscription"
+    },
+    "plans": {
+      "standard": {
+        "name": "Standard",
+        "feature1": "1 published listing in 1 category",
+        "feature2": "Calendar and booking management",
+        "feature3": "Promotion — one-time purchase"
+      },
+      "premium": {
+        "name": "Premium",
+        "feature1": "Up to 2 published listings in every category",
+        "feature2": "Calendar and booking management",
+        "feature3": "Promotion included in the plan"
+      },
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "priceHint": "Price shown at checkout",
+      "checkoutCta": "Subscribe"
+    },
+    "status": {
+      "active": "Active",
+      "past_due": "Payment past due",
+      "canceled": "Canceled",
+      "revoked": "Revoked"
+    },
+    "noSubscriptionTitle": "No active subscription",
+    "noSubscriptionHint": "Subscribe to publish listings.",
+    "pastDueWarning": "Payment failed. If not renewed by {date}, your listings will be hidden.",
+    "portalCta": "Manage billing",
+    "restoreCta": "Restore listings",
+    "restoring": "Restoring…",
+    "restoreErrorLimit": "Plan limit reached — pick which listing stays published.",
+    "restoreErrorGeneric": "Error restoring listings. Try again.",
+    "systemHiddenCount": "{count, plural, one {# listing hidden by the system} other {# listings hidden by the system}}",
+    "picker": {
+      "title": "Pick which listing stays published",
+      "hint": "Your plan allows fewer published listings. The rest stay hidden but keep their reviews and history.",
+      "confirm": "Publish selected",
+      "confirming": "Publishing…",
+      "error": "Error publishing. Try again."
+    },
+    "gate": {
+      "noSubscription": "You need an active subscription to publish a listing.",
+      "limitReached": "You've reached your plan's limit for this category.",
+      "cta": "View subscription"
+    }
   }
 }
