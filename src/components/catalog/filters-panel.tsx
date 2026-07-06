@@ -52,6 +52,7 @@ function FiltersForm({
   const searchParams = useSearchParams();
 
   const [city, setCity] = useState<CityOption | null>(null);
+  const [cityCleared, setCityCleared] = useState(false);
   const [priceMin, setPriceMin] = useState(
     current.priceMinCents != null ? String(current.priceMinCents / 100) : "",
   );
@@ -75,7 +76,11 @@ function FiltersForm({
   function apply() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("page");
-    if (!hideCity && city) params.set("city", city.id);
+    if (!hideCity) {
+      if (city) params.set("city", city.id);
+      else if (cityCleared) params.delete("city");
+      // else: no new selection and not cleared → keep whatever ?city was already there
+    }
     const min = priceMin ? parseEuroToCents(priceMin) : null;
     const max = priceMax ? parseEuroToCents(priceMax) : null;
     if (min != null) params.set("priceMin", String(min));
@@ -97,6 +102,7 @@ function FiltersForm({
     for (const k of ["city", "region", "priceMin", "priceMax", "page"]) params.delete(k);
     for (const def of definitions) params.delete(`attr_${def.id}`);
     setCity(null);
+    setCityCleared(false);
     setPriceMin("");
     setPriceMax("");
     setAttrs({});
@@ -111,7 +117,22 @@ function FiltersForm({
         <div className="space-y-2">
           <Label>{t("filtersCity")}</Label>
           {/* ponytail: при hard reload с ?city= името не се resolve-ва (няма cityById метод) — combobox позволява ре-избор */}
-          <CityCombobox value={city} onChange={setCity} />
+          <CityCombobox
+            value={city}
+            onChange={(c) => {
+              setCity(c);
+              setCityCleared(false);
+            }}
+          />
+          {current.cityId && !city && !cityCleared && (
+            <button
+              type="button"
+              onClick={() => setCityCleared(true)}
+              className="text-xs text-muted-foreground underline"
+            >
+              {t("filtersClearCity")}
+            </button>
+          )}
         </div>
       )}
 
@@ -121,6 +142,7 @@ function FiltersForm({
           <Input
             inputMode="numeric"
             placeholder={t("filtersPriceMin")}
+            aria-label={t("filtersPriceMin")}
             value={priceMin}
             onChange={(e) => setPriceMin(e.target.value)}
             className="h-11"
@@ -129,6 +151,7 @@ function FiltersForm({
           <Input
             inputMode="numeric"
             placeholder={t("filtersPriceMax")}
+            aria-label={t("filtersPriceMax")}
             value={priceMax}
             onChange={(e) => setPriceMax(e.target.value)}
             className="h-11"

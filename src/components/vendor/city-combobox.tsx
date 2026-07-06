@@ -19,7 +19,7 @@ export function CityCombobox({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { data: hits } = useQuery({
+  const { data: hits, isLoading, isError } = useQuery({
     ...trpc.catalog.location.searchCities.queryOptions({ query }),
     enabled: query.length >= 1,
   });
@@ -44,9 +44,15 @@ export function CityCombobox({
           setOpen(true);
         }}
       />
-      {open && hits && hits.length > 0 && (
+      {open && query.length >= 1 && (isLoading || isError || (hits && hits.length > 0)) && (
         <ul className="absolute z-20 mt-1 w-full rounded-md border bg-card shadow-sm">
-          {hits.map((c) => (
+          {isLoading && (
+            <li className="px-3 py-2 text-sm text-muted-foreground">{t("citySearching")}</li>
+          )}
+          {isError && (
+            <li className="px-3 py-2 text-sm text-destructive">{t("citySearchError")}</li>
+          )}
+          {!isLoading && !isError && hits?.map((c) => (
             <li key={c.id}>
               <button
                 type="button"
