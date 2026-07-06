@@ -8,7 +8,7 @@ import type { SessionUser } from "@/data/users/require-user";
 
 let owner: SessionUser;
 let ownerId: string, listingId: string, categoryId: string;
-let boolDefId: string, multiDefId: string;
+let boolDefId: string, multiDefId: string, numberDefId: string;
 
 beforeAll(async () => {
   const u = await createTestUser();
@@ -20,6 +20,7 @@ beforeAll(async () => {
   const defs = await AttributeDAL.public().definitionsByCategory(categoryId);
   boolDefId = defs.find((d) => d.key === "second_shooter")!.id;
   multiDefId = defs.find((d) => d.key === "style")!.id;
+  numberDefId = defs.find((d) => d.key === "years_experience")!.id;
   const listing = await ListingDAL.for(owner).createDraft({ title: "Атрибути Тест", categoryId, cityId: await getTestCityId() });
   listingId = listing.id;
 });
@@ -54,4 +55,17 @@ test("setValues: заменя изцяло (повторен set с 1 стойн
   await dal.setValues(listingId, [{ definitionId: boolDefId, value: false }]);
   const values = await dal.getValues(listingId);
   expect(values).toHaveLength(1);
+});
+
+test("setValues: number — валидно 5, невалидни -1 и NaN", async () => {
+  const dal = AttributeDAL.for(owner);
+  await dal.setValues(listingId, [{ definitionId: numberDefId, value: 5 }]);
+  const values = await dal.getValues(listingId);
+  expect(values.find((v) => v.definitionId === numberDefId)?.value).toBe(5);
+  await expect(
+    dal.setValues(listingId, [{ definitionId: numberDefId, value: -1 }]),
+  ).rejects.toThrow("INVALID_ATTRIBUTE_VALUE");
+  await expect(
+    dal.setValues(listingId, [{ definitionId: numberDefId, value: Number.NaN }]),
+  ).rejects.toThrow("INVALID_ATTRIBUTE_VALUE");
 });
