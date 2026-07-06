@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
@@ -149,5 +149,64 @@ export class MessagingDAL {
       counterpartName: (role === "vendor" ? meta?.customerName : meta?.vendorName) ?? "",
       messages: msgs.map((m) => this.toMessageDTO(m)),
     };
+  }
+
+  async sendMessage(threadId: string, body: string): Promise<MessageDTO> {
+    const row = await this.participantThread(threadId);
+    const me = this.user.id;
+    const inserted = await db.transaction(async (tx) => {
+      const [msg] = await tx.insert(message).values({ threadId, senderId: me, body }).returning();
+      if (!msg) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await tx.update(thread).set({ lastMessageAt: new Date() }).where(eq(thread.id, threadId));
+      return msg;
+    });
+    if (row.vendorId === me) await this.recomputeAvgResponse();
+    return this.toMessageDTO(inserted);
+  }
+
+  async markRead(threadId: string): Promise<void> {
+    await this.participantThread(threadId);
+    await db
+      .update(message)
+      .set({ readAt: new Date() })
+      .where(and(eq(message.threadId, threadId), ne(message.senderId, this.user.id), isNull(message.readAt)));
+  }
+
+  async unreadCount(): Promise<number> {
+    const me = this.user.id;
+    const [row] = await db
+      .select({ n: count() })
+      .from(message)
+      .innerJoin(thread, eq(message.threadId, thread.id))
+      .where(and(
+        or(eq(thread.customerId, me), eq(thread.vendorId, me)),
+        ne(message.senderId, me),
+        isNull(message.readAt),
+      ));
+    return row?.n ?? 0;
+  }
+
+  // ponytail: full recompute на всеки vendor reply, LIMIT 50 нишки; incremental при доказан обем
+  private async recomputeAvgResponse(): Promise<void> {
+    const me = this.user.id;
+    await db.execute(sql`
+      update "user" set avg_response_minutes = sub.avg_min
+      from (
+        select round(avg(extract(epoch from (fv.first_reply - t.created_at)) / 60))::int as avg_min
+        from (
+          select id, created_at from ${thread}
+          where vendor_id = ${me}
+          order by last_message_at desc
+          limit 50
+        ) t
+        join (
+          select thread_id, min(created_at) as first_reply
+          from ${message}
+          where sender_id = ${me}
+          group by thread_id
+        ) fv on fv.thread_id = t.id
+      ) sub
+      where "user".id = ${me}
+    `);
   }
 }
