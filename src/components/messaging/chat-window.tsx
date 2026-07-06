@@ -22,12 +22,13 @@ export function ChatWindow({ threadId }: { threadId: string }) {
     { threadId },
     { refetchInterval: 5000 },
   );
-  const { data: thread } = useQuery(threadQO);
+  const { data: thread, isError: threadError } = useQuery(threadQO);
 
   const markRead = useMutation(
     trpc.messaging.markRead.mutationOptions({
       onSuccess: () =>
         void queryClient.invalidateQueries({ queryKey: trpc.messaging.unreadCount.queryKey() }),
+      onError: () => console.error("markRead failed"),
     }),
   );
   const sendMessage = useMutation(
@@ -51,6 +52,17 @@ export function ChatWindow({ threadId }: { threadId: string }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [thread?.messages.length]);
+
+  if (threadError) {
+    return (
+      <div className="flex h-[calc(100vh-8rem)] flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm text-muted-foreground">{t("threadNotFound")}</p>
+        <Link href="/profil/saobshtenia" className="text-sm font-medium underline underline-offset-4">
+          {t("back")}
+        </Link>
+      </div>
+    );
+  }
 
   if (!thread) return null;
 

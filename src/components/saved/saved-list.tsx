@@ -14,9 +14,16 @@ export function SavedList() {
   const tSaved = useTranslations("Saved");
   const locale = useLocale();
   const trpc = useTRPC();
-  const { data: listings, isPending } = useQuery(trpc.saved.list.queryOptions());
+  const { data: listings, isPending, isError } = useQuery(trpc.saved.list.queryOptions());
 
   if (isPending) return null;
+  if (isError) {
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        {tSaved("errorLoad")}
+      </p>
+    );
+  }
   if (!listings || listings.length === 0) {
     return (
       <div className="rounded-lg border border-border p-8 text-center">
@@ -27,7 +34,7 @@ export function SavedList() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {listings.map((listing) => {
         const coverUrl = listing.coverCfImageId ? cfImageUrl(listing.coverCfImageId) : null;
         const categoryName = locale === "bg" ? listing.categoryNameBg : listing.categoryNameEn;

@@ -31,12 +31,16 @@ export function MobileBottomNav() {
     <nav className="fixed inset-x-0 bottom-0 z-40 h-16 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
       <ul className="mx-auto flex h-16 max-w-6xl">
         {tabs.map(({ href, label, Icon, ...rest }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
+          const active =
+            href === "/profil"
+              ? pathname === href
+              : pathname === href || pathname.startsWith(`${href}/`);
           const badge = "badge" in rest ? rest.badge : undefined;
           return (
             <li key={href} className="flex-1">
               <Link
                 href={href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative flex h-full min-h-11 flex-col items-center justify-center gap-0.5 text-xs",
                   active ? "text-primary" : "text-muted-foreground",
