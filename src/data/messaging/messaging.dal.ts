@@ -5,6 +5,8 @@ import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { listing, listingImage, message, thread, user } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
+import { getBaseUrl } from "@/lib/seo";
+import { newMessageEmail, sendEmail } from "@/lib/email";
 import type { MessageDTO, ThreadDetailDTO, ThreadListItemDTO } from "./messaging.dto";
 
 type ThreadRow = typeof thread.$inferSelect;
@@ -24,6 +26,23 @@ export class MessagingDAL {
       throw new TRPCError({ code: "NOT_FOUND" });
     }
     return row;
+  }
+
+  // fire-and-forget: чете email от user; НИКОГА не бута мутацията
+  private async notifyNewMessage(threadId: string, listingId: string, recipientId: string, body: string): Promise<void> {
+    const [r] = await db
+      .select({ email: user.email, name: user.name, title: listing.title })
+      .from(user)
+      .innerJoin(listing, eq(listing.id, listingId))
+      .where(eq(user.id, recipientId));
+    if (!r?.email) return;
+    const { subject, html } = newMessageEmail({
+      recipientName: r.name,
+      listingTitle: r.title,
+      body,
+      threadUrl: `${getBaseUrl()}/profil/saobshtenia/${threadId}`,
+    });
+    await sendEmail({ to: r.email, subject, html });
   }
 
   private toMessageDTO(m: MessageRow): MessageDTO {
@@ -48,7 +67,7 @@ export class MessagingDAL {
     if (!l || l.status !== "published") throw new TRPCError({ code: "NOT_FOUND" });
     if (l.ownerId === this.user.id) throw new TRPCError({ code: "FORBIDDEN" });
 
-    return await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const [existing] = await tx
         .select({ id: thread.id })
         .from(thread)
@@ -85,6 +104,10 @@ export class MessagingDAL {
       await tx.update(thread).set({ lastMessageAt: now }).where(eq(thread.id, won.id));
       return { threadId: won.id };
     });
+    // ново запитване → email до вендора (recipient = listing.ownerId); важи за всички пътища по-горе (нов thread или append)
+    void this.notifyNewMessage(result.threadId, input.listingId, l.ownerId, input.body)
+      .catch((e) => console.error("email failed", e));
+    return result;
   }
 
   async listThreads(): Promise<ThreadListItemDTO[]> {
@@ -179,6 +202,10 @@ export class MessagingDAL {
         console.error("avgResponse recompute failed", e);
       }
     }
+    // email до другия участник (recipient = ако аз съм vendor → customer, иначе vendor)
+    const recipientId = row.vendorId === me ? row.customerId : row.vendorId;
+    void this.notifyNewMessage(threadId, row.listingId, recipientId, body)
+      .catch((e) => console.error("email failed", e));
     return this.toMessageDTO(inserted);
   }
 
