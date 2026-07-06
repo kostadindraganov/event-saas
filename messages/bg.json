@@ -42,6 +42,20 @@
     "creating": "Създаване…",
     "errorCreate": "Възникна грешка при създаването. Опитайте отново.",
     "errorSave": "Възникна грешка при запазването. Опитайте отново.",
+    "gallery": {
+      "addImages": "Добави снимки",
+      "uploading": "Качване…",
+      "cover": "Корица",
+      "setCover": "Направи корица",
+      "removeImage": "Изтрий снимката",
+      "removeConfirm": "Снимката ще бъде изтрита завинаги.",
+      "cancel": "Отказ",
+      "confirm": "Изтрий",
+      "videoUrl": "YouTube линк",
+      "addVideo": "Добави видео",
+      "invalidVideo": "Невалиден YouTube линк",
+      "cfMissing": "Хостингът на снимки не е конфигуриран (CLOUDFLARE_* ключове)."
+    },
     "status": {
       "draft": "Чернова",
       "pending_approval": "Чака одобрение",

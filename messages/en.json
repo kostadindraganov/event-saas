@@ -42,6 +42,20 @@
     "creating": "Creating…",
     "errorCreate": "Something went wrong while creating. Please try again.",
     "errorSave": "Something went wrong while saving. Please try again.",
+    "gallery": {
+      "addImages": "Add images",
+      "uploading": "Uploading…",
+      "cover": "Cover",
+      "setCover": "Set as cover",
+      "removeImage": "Delete image",
+      "removeConfirm": "The image will be deleted permanently.",
+      "cancel": "Cancel",
+      "confirm": "Delete",
+      "videoUrl": "YouTube link",
+      "addVideo": "Add video",
+      "invalidVideo": "Invalid YouTube link",
+      "cfMissing": "Image hosting is not configured (CLOUDFLARE_* keys)."
+    },
     "status": {
       "draft": "Draft",
       "pending_approval": "Pending approval",

@@ -5,6 +5,7 @@ import type { AttributeDefinitionDTO } from "@/data/catalog/attribute.dto";
 import { WizardNav, STEPS, type WizardStep } from "./wizard-nav";
 import { StepOsnovni } from "./step-osnovni";
 import { StepAtributi } from "./step-atributi";
+import { StepGaleria } from "./step-galeria";
 
 export function WizardShell({
   listing,
@@ -24,7 +25,7 @@ export function WizardShell({
       <section>
         {step === "osnovni" && <StepOsnovni listing={listing} />}
         {step === "atributi" && <StepAtributi listing={listing} definitions={definitions} />}
-        {step === "galeria" && <p className="text-muted-foreground">…</p>}
+        {step === "galeria" && <StepGaleria listing={listing} />}
         {step === "paketi" && <p className="text-muted-foreground">…</p>}
         {step === "pregled" && <p className="text-muted-foreground">…</p>}
       </section>
