@@ -3,6 +3,7 @@ import { catalogRouter } from "./catalog";
 import { mediaRouter } from "./media";
 import { savedRouter } from "./saved";
 import { messagingRouter } from "./messaging";
+import { billingRouter } from "./billing";
 
 export const appRouter = createTRPCRouter({
   health: createTRPCRouter({
@@ -13,6 +14,7 @@ export const appRouter = createTRPCRouter({
   media: mediaRouter,
   saved: savedRouter,
   messaging: messagingRouter,
+  billing: billingRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -2,8 +2,10 @@ import "server-only";
 import { and, count, eq, inArray, lt, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { listing, setting, subscription, user } from "@/db/schema";
+import { category, listing, setting, subscription, user } from "@/db/schema";
 import { listingsHiddenEmail, sendEmail, subscriptionPastDueEmail } from "@/lib/email";
+import type { SessionUser } from "@/data/users/require-user";
+import type { BillingOverviewDTO, SubscriptionDTO, SystemHiddenListingDTO } from "./billing.dto";
 
 // Тесен локален тип: точната форма на Polar webhook payload-а не е потвърдена в код —
 // пазим само полетата, които реално ползваме, и парсваме defensively.
@@ -120,6 +122,115 @@ export async function notifyListingsHiddenEmail(userId: string, count: number): 
 }
 
 export class BillingDAL {
+  // конструктор + фабрика — mine/restoreListings/keepListing ползват this.user.
+  // (static assertCanPublish/projectSubscriptionEvent/expireGracePeriods остават непроменени)
+  private constructor(private readonly user: SessionUser) {}
+  static for(user: SessionUser): BillingDAL {
+    return new BillingDAL(user);
+  }
+
+  async mine(locale: "bg" | "en"): Promise<BillingOverviewDTO> {
+    const [subRow] = await db.select().from(subscription).where(eq(subscription.userId, this.user.id));
+    const hiddenRows = await db
+      .select({
+        id: listing.id,
+        title: listing.title,
+        categoryNameBg: category.nameBg,
+        categoryNameEn: category.nameEn,
+      })
+      .from(listing)
+      .innerJoin(category, eq(listing.categoryId, category.id))
+      .where(and(
+        eq(listing.ownerId, this.user.id),
+        eq(listing.status, "hidden"),
+        eq(listing.hiddenBySystem, true),
+      ));
+    const sub: SubscriptionDTO | null = subRow ? {
+      plan: subRow.plan,
+      status: subRow.status,
+      currentPeriodEnd: subRow.currentPeriodEnd?.toISOString() ?? null,
+      graceUntil: subRow.graceUntil?.toISOString() ?? null,
+    } : null;
+    const systemHidden: SystemHiddenListingDTO[] = hiddenRows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      categoryName: locale === "bg" ? r.categoryNameBg : r.categoryNameEn,
+    }));
+    return { subscription: sub, systemHidden };
+  }
+
+  async restoreListings(): Promise<{ restored: number }> {
+    const userId = this.user.id;
+    return db.transaction(async (tx) => {
+      const [subRow] = await tx.select().from(subscription).where(eq(subscription.userId, userId));
+      const activeForPublishing = subRow && (
+        subRow.status === "active" ||
+        (subRow.status === "past_due" && subRow.graceUntil !== null && subRow.graceUntil > new Date())
+      );
+      if (!activeForPublishing) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
+
+      const hiddenRows = await tx
+        .select({ id: listing.id, categoryId: listing.categoryId })
+        .from(listing)
+        .where(and(eq(listing.ownerId, userId), eq(listing.status, "hidden"), eq(listing.hiddenBySystem, true)));
+      if (hiddenRows.length === 0) return { restored: 0 };
+
+      const publishedByCategory = await tx
+        .select({ categoryId: listing.categoryId, n: count() })
+        .from(listing)
+        .where(and(eq(listing.ownerId, userId), eq(listing.status, "published")))
+        .groupBy(listing.categoryId);
+
+      const { limits: { standard, premiumPerCategory } } = await getBillingSettings();
+      if (subRow!.plan === "standard") {
+        const publishedTotal = publishedByCategory.reduce((sum, r) => sum + r.n, 0);
+        if (publishedTotal + hiddenRows.length > standard) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "LIMIT_REACHED" });
+        }
+      } else {
+        const publishedMap = new Map(publishedByCategory.map((r) => [r.categoryId, r.n]));
+        const hiddenByCategory = new Map<string, number>();
+        for (const r of hiddenRows) hiddenByCategory.set(r.categoryId, (hiddenByCategory.get(r.categoryId) ?? 0) + 1);
+        for (const [catId, hiddenCount] of hiddenByCategory) {
+          const already = publishedMap.get(catId) ?? 0;
+          if (already + hiddenCount > premiumPerCategory) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "LIMIT_REACHED" });
+          }
+        }
+      }
+
+      const ids = hiddenRows.map((r) => r.id);
+      await tx.update(listing)
+        .set({ status: "published", hiddenBySystem: false, publishedAt: new Date(), updatedAt: new Date() })
+        .where(and(
+          eq(listing.ownerId, userId),
+          inArray(listing.id, ids),
+          eq(listing.status, "hidden"),
+          eq(listing.hiddenBySystem, true),
+        ));
+      return { restored: ids.length };
+    });
+  }
+
+  async keepListing(listingId: string): Promise<void> {
+    const userId = this.user.id;
+    await db.transaction(async (tx) => {
+      const [row] = await tx.select().from(listing).where(eq(listing.id, listingId));
+      // чужда обява ИЛИ не е system-hidden → NOT_FOUND, никога FORBIDDEN (без enumeration, contract т.7)
+      if (!row || row.ownerId !== userId || row.status !== "hidden" || !row.hiddenBySystem) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      await BillingDAL.assertCanPublish(tx, userId, row.categoryId, listingId);
+      await tx.update(listing)
+        .set({ status: "published", hiddenBySystem: false, publishedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(listing.id, listingId), eq(listing.status, "hidden")));
+      // скрий всички останали published сестри на собственика (запазваме само избраната)
+      await tx.update(listing)
+        .set({ status: "hidden", hiddenBySystem: true, updatedAt: new Date() })
+        .where(and(eq(listing.ownerId, userId), ne(listing.id, listingId), eq(listing.status, "published")));
+    });
+  }
+
   // Вика се вътре в submit()/unhide() транзакцията (tx), ПРЕДИ CAS UPDATE-а на listing.status.
   // Standard = общо 1 published (без значение от categoryId); Premium = 2 per categoryId.
   // excludeListingId маха обявата, която тъкмо се публикува, от собственото ѝ броене.
