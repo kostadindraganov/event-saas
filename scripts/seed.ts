@@ -3,11 +3,29 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import { eq } from "drizzle-orm";
 import ws from "ws";
-import { category, region, city } from "../src/db/schema/catalog";
+import { category, region, city, attributeDefinition } from "../src/db/schema/catalog";
 import { CATEGORIES, REGIONS } from "./seed-data";
+import { ATTRIBUTE_SEED } from "./seed-attributes";
 
 neonConfig.webSocketConstructor = ws;
 const db = drizzle(new Pool({ connectionString: process.env.DATABASE_URL }));
+
+async function seedAttributes() {
+  const cats = await db.select({ id: category.id, slug: category.slug }).from(category);
+  const bySlug = new Map(cats.map((c) => [c.slug, c.id]));
+  for (const [slug, defs] of Object.entries(ATTRIBUTE_SEED)) {
+    const categoryId = bySlug.get(slug);
+    if (!categoryId) throw new Error(`категория липсва: ${slug}`);
+    await db
+      .insert(attributeDefinition)
+      .values(defs.map((d, i) => ({
+        categoryId, key: d.key, labelBg: d.labelBg, labelEn: d.labelEn,
+        type: d.type, options: d.options ?? null,
+        showAsFilter: d.showAsFilter, showAsChip: d.showAsChip, sortOrder: i,
+      })))
+      .onConflictDoNothing();
+  }
+}
 
 async function main() {
   await db
@@ -21,6 +39,9 @@ async function main() {
     if (!row) throw new Error(`region ${r.slug} missing`);
     await db.insert(city).values({ regionId: row.id, ...r.city }).onConflictDoNothing();
   }
+
+  await seedAttributes();
+
   console.log("seed done");
   process.exit(0);
 }
