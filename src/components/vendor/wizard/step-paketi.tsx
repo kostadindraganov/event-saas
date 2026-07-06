@@ -17,6 +17,7 @@ import {
 
 export function StepPaketi({ listing }: { listing: ListingDTO }) {
   const t = useTranslations("Vendor.packages");
+  const tv = useTranslations("Vendor");
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -61,7 +62,7 @@ export function StepPaketi({ listing }: { listing: ListingDTO }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-medium">{t("title")}</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); setError(false); }}>
           <DialogTrigger asChild><Button>{t("add")}</Button></DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>{t("add")}</DialogTitle></DialogHeader>
@@ -82,12 +83,13 @@ export function StepPaketi({ listing }: { listing: ListingDTO }) {
                 <Label htmlFor="p-inc">{t("included")}</Label>
                 <Textarea id="p-inc" rows={4} value={included} onChange={(e) => setIncluded(e.target.value)} />
               </div>
-              {error && <p role="alert" className="text-sm text-destructive">{t("errorSave", { ns: "Vendor" })}</p>}
+              {error && <p role="alert" className="text-sm text-destructive">{tv("errorSave")}</p>}
               <Button type="submit" className="w-full" disabled={create.isPending}>{t("save")}</Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
+      {error && <p role="alert" className="text-sm text-destructive">{tv("errorSave")}</p>}
       <div className="grid gap-4 sm:grid-cols-2">
         {packages?.map((p) => (
           <Card key={p.id}>
