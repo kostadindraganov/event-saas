@@ -18,4 +18,15 @@ export const billingRouter = createTRPCRouter({
       await BillingDAL.for(ctx.user).keepListing(input.listingId);
       revalidateTag("listings", { expire: 0 });
     }),
+  promotion: createTRPCRouter({
+    activate: protectedProcedure
+      .input(z.object({ listingId: z.uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        await BillingDAL.for(ctx.user).activate(input.listingId);
+        revalidateTag("listings", { expire: 0 });
+      }),
+    myPromotions: protectedProcedure
+      .input(z.object({ locale: z.enum(["bg", "en"]) }))
+      .query(({ ctx, input }) => BillingDAL.for(ctx.user).myPromotions(input.locale)),
+  }),
 });

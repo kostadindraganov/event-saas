@@ -391,3 +391,93 @@ test("projectOrderEvent: вече активна промоция на обяв�
   expect(rows.length).toBe(1);
   expect(rows[0]?.source).toBe("premium_included");
 });
+
+test("activate: чужда/несъществуваща обява → NOT_FOUND", async () => {
+  const owner = await newOwner();
+  const other = await newOwner();
+  await createTestSubscription(owner.id, { plan: "premium", status: "active" });
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const otherListing = await ListingDAL.for(other.user).createDraft({ title: "Чужда За Активиране", categoryId: categoryA!, cityId });
+  await expect(BillingDAL.for(owner.user).activate(otherListing.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+
+test("activate: без subscription → FORBIDDEN NO_SUBSCRIPTION", async () => {
+  const { user, id } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Активирай Без Абонамент", categoryId: categoryA!, cityId });
+  await expect(BillingDAL.for(user).activate(draft.id)).rejects.toMatchObject({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
+});
+
+test("activate: standard план → FORBIDDEN PREMIUM_REQUIRED", async () => {
+  const { user, id } = await newOwner();
+  await createTestSubscription(id, { plan: "standard", status: "active" });
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Активирай Стандарт", categoryId: categoryA!, cityId });
+  await expect(BillingDAL.for(user).activate(draft.id)).rejects.toMatchObject({ code: "FORBIDDEN", message: "PREMIUM_REQUIRED" });
+});
+
+test("activate: premium с попълнени слотове (default 2) → FORBIDDEN LIMIT_REACHED", async () => {
+  const { user, id } = await newOwner();
+  await createTestSubscription(id, { plan: "premium", status: "active" });
+  const cityId = await getTestCityId();
+  const [categoryA, categoryB] = await twoCategories();
+  const a = await ListingDAL.for(user).createDraft({ title: "Слот А", categoryId: categoryA!, cityId });
+  const b = await ListingDAL.for(user).createDraft({ title: "Слот Б", categoryId: categoryB!, cityId });
+  const c = await ListingDAL.for(user).createDraft({ title: "Слот В", categoryId: categoryA!, cityId });
+  await BillingDAL.for(user).activate(a.id);
+  await BillingDAL.for(user).activate(b.id);
+  await expect(BillingDAL.for(user).activate(c.id)).rejects.toMatchObject({ code: "FORBIDDEN", message: "LIMIT_REACHED" });
+});
+
+test("activate: вече промотирана обява → CONFLICT ALREADY_PROMOTED", async () => {
+  const { user, id } = await newOwner();
+  await createTestSubscription(id, { plan: "premium", status: "active" });
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Двойно Активиране", categoryId: categoryA!, cityId });
+  await BillingDAL.for(user).activate(draft.id);
+  await expect(BillingDAL.for(user).activate(draft.id)).rejects.toMatchObject({ code: "CONFLICT", message: "ALREADY_PROMOTED" });
+});
+
+test("activate: happy path → insert 'premium_included' с polarOrderId=null и endsAt=now+durationDays", async () => {
+  const { user, id } = await newOwner();
+  await createTestSubscription(id, { plan: "premium", status: "active" });
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Активирай Happy", categoryId: categoryA!, cityId });
+  await BillingDAL.for(user).activate(draft.id);
+  const [row] = await testDb.select().from(schema.promotion).where(eq(schema.promotion.listingId, draft.id));
+  expect(row?.source).toBe("premium_included");
+  expect(row?.polarOrderId).toBeNull();
+});
+
+test("myPromotions: published+hidden обяви на owner-а; promoActive/promoEndsAt по активна промоция; без polarOrderId в DTO", async () => {
+  const { user } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const promoted = await publishedListing(user, categoryA!, cityId, "Моите Промо Активна");
+  const plain = await publishedListing(user, categoryA!, cityId, "Моите Промо Без");
+  await createTestPromotion(promoted, { source: "purchased" });
+
+  const rows = await BillingDAL.for(user).myPromotions("bg");
+  const a = rows.find((r) => r.id === promoted);
+  const b = rows.find((r) => r.id === plain);
+  expect(a?.promoActive).toBe(true);
+  expect(a?.promoEndsAt).not.toBeNull();
+  expect(b?.promoActive).toBe(false);
+  expect(b?.promoEndsAt).toBeNull();
+  expect(a).not.toHaveProperty("polarOrderId");
+});
+
+test("myPromotions: owner-scoped — не връща чужди обяви", async () => {
+  const owner = await newOwner();
+  const other = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  await publishedListing(other.user, categoryA!, cityId, "Чужда За MyPromotions");
+  const rows = await BillingDAL.for(owner.user).myPromotions("bg");
+  expect(rows).toEqual([]);
+});

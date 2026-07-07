@@ -17,3 +17,13 @@ export type BillingOverviewDTO = {
   subscription: SubscriptionDTO | null;
   systemHidden: SystemHiddenListingDTO[];
 };
+
+// DTO хигиена: без polarOrderId (contract т.13) — клиентът вижда само активна/неактивна + краен срок.
+export type MyPromotionListingDTO = {
+  id: string;
+  title: string;
+  categoryName: string;
+  status: "published" | "hidden";
+  promoActive: boolean;
+  promoEndsAt: string | null; // ISO
+};

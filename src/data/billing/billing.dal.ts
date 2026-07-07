@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { category, listing, promotion, setting, subscription, user } from "@/db/schema";
 import { listingsHiddenEmail, sendEmail, subscriptionPastDueEmail } from "@/lib/email";
 import type { SessionUser } from "@/data/users/require-user";
-import type { BillingOverviewDTO, SubscriptionDTO, SystemHiddenListingDTO } from "./billing.dto";
+import type { BillingOverviewDTO, MyPromotionListingDTO, SubscriptionDTO, SystemHiddenListingDTO } from "./billing.dto";
 
 // Тесен локален тип: точната форма на Polar webhook payload-а не е потвърдена в код —
 // пазим само полетата, които реално ползваме, и парсваме defensively.
@@ -261,6 +261,82 @@ export class BillingDAL {
         .set({ status: "published", hiddenBySystem: false, publishedAt: new Date(), updatedAt: new Date() })
         .where(and(eq(listing.id, listingId), eq(listing.status, "hidden")));
     });
+  }
+
+  // Premium: активира включен промо слот за собствена обява. Валидационен ред (contract т.4):
+  // NOT_FOUND (чужда/несъществуваща) → NO_SUBSCRIPTION/PREMIUM_REQUIRED → LIMIT_REACHED → ALREADY_PROMOTED.
+  async activate(listingId: string): Promise<void> {
+    const userId = this.user.id;
+    const { promo } = await getBillingSettings();
+    await db.transaction(async (tx) => {
+      const [row] = await tx.select({ ownerId: listing.ownerId }).from(listing).where(eq(listing.id, listingId));
+      if (!row || row.ownerId !== userId) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [sub] = await tx.select().from(subscription).where(eq(subscription.userId, userId));
+      const active = !!sub && (
+        sub.status === "active" ||
+        (sub.status === "past_due" && !!sub.graceUntil && sub.graceUntil.getTime() > Date.now())
+      );
+      if (!sub || !active) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
+      if (sub.plan !== "premium") throw new TRPCError({ code: "FORBIDDEN", message: "PREMIUM_REQUIRED" });
+
+      const usedSlots = await BillingDAL.countActiveIncludedPromotions(tx, userId);
+      if (usedSlots >= promo.premiumSlots) throw new TRPCError({ code: "FORBIDDEN", message: "LIMIT_REACHED" });
+
+      if (await BillingDAL.activePromotionForListing(tx, listingId)) {
+        throw new TRPCError({ code: "CONFLICT", message: "ALREADY_PROMOTED" });
+      }
+
+      const now = new Date();
+      await tx.insert(promotion).values({
+        listingId,
+        source: "premium_included",
+        startsAt: now,
+        endsAt: new Date(now.getTime() + promo.durationDays * 24 * 60 * 60 * 1000),
+      });
+    });
+  }
+
+  // PromotionManager данни: published+hidden обяви на owner-а + активна промоция (ако има).
+  async myPromotions(locale: "bg" | "en"): Promise<MyPromotionListingDTO[]> {
+    const now = new Date();
+    const rows = await db
+      .select({
+        id: listing.id,
+        title: listing.title,
+        categoryNameBg: category.nameBg,
+        categoryNameEn: category.nameEn,
+        status: listing.status,
+        promoEndsAt: promotion.endsAt,
+      })
+      .from(listing)
+      .innerJoin(category, eq(listing.categoryId, category.id))
+      .leftJoin(promotion, and(
+        eq(promotion.listingId, listing.id),
+        lte(promotion.startsAt, now),
+        gt(promotion.endsAt, now),
+      ))
+      .where(and(eq(listing.ownerId, this.user.id), inArray(listing.status, ["published", "hidden"])));
+
+    const byListing = new Map<string, MyPromotionListingDTO>();
+    for (const r of rows) {
+      if (!byListing.has(r.id)) {
+        byListing.set(r.id, {
+          id: r.id,
+          title: r.title,
+          categoryName: locale === "bg" ? r.categoryNameBg : r.categoryNameEn,
+          status: r.status as "published" | "hidden",
+          promoActive: false,
+          promoEndsAt: null,
+        });
+      }
+      if (r.promoEndsAt) {
+        const dto = byListing.get(r.id)!;
+        dto.promoActive = true;
+        dto.promoEndsAt = r.promoEndsAt.toISOString();
+      }
+    }
+    return Array.from(byListing.values());
   }
 
   // Вика се вътре в submit()/unhide() транзакцията (tx), ПРЕДИ CAS UPDATE-а на listing.status.
