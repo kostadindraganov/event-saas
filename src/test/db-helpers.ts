@@ -10,7 +10,7 @@ neonConfig.webSocketConstructor = ws;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 export const testDb = drizzle(pool, { schema });
 
-export async function createTestUser() {
+export async function createTestUser(opts?: { isAdmin?: boolean }) {
   const id = randomUUID();
   const email = `test-${id}@event-review.test`;
   await testDb.insert(schema.user).values({
@@ -18,6 +18,7 @@ export async function createTestUser() {
     email,
     name: "Тест Потребител",
     emailVerified: false,
+    isAdmin: opts?.isAdmin ?? false,
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -66,6 +67,32 @@ export async function createTestPromotion(
       startsAt: opts.startsAt ?? now,
       endsAt: opts.endsAt ?? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
       polarOrderId: opts.polarOrderId ?? null,
+    })
+    .returning();
+  if (!row) throw new Error("INSERT_FAILED");
+  return row;
+}
+
+export async function createTestListing(
+  ownerId: string,
+  opts: {
+    status: "draft" | "pending_approval" | "published" | "hidden" | "rejected" | "removed";
+    categoryId: string;
+    cityId: string;
+  },
+) {
+  const id = randomUUID();
+  const [row] = await testDb
+    .insert(schema.listing)
+    .values({
+      id,
+      ownerId,
+      categoryId: opts.categoryId,
+      cityId: opts.cityId,
+      slug: `test-listing-${id}`,
+      title: "Тест Обява",
+      status: opts.status,
+      publishedAt: opts.status === "published" ? new Date() : null,
     })
     .returning();
   if (!row) throw new Error("INSERT_FAILED");

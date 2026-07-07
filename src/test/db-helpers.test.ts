@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
+import { createTestUser, cleanupTestUser, createTestSubscription, createTestListing, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
 import * as schema from "@/db/schema";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 
@@ -59,4 +59,19 @@ test("createTestSubscription: вмъква ред; повторен извикв
   expect(
     (await testDb.select().from(schema.subscription).where(eq(schema.subscription.userId, u.id))).length,
   ).toBe(0);
+});
+
+test("createTestUser({isAdmin:true}) сетва is_admin; createTestListing вкарва ред със зададен статус", async () => {
+  const admin = await createTestUser({ isAdmin: true });
+  const [adminRow] = await testDb.select().from(schema.user).where(eq(schema.user.id, admin.id));
+  expect(adminRow?.isAdmin).toBe(true);
+
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const pending = await createTestListing(admin.id, { status: "pending_approval", categoryId, cityId });
+  expect(pending.status).toBe("pending_approval");
+  expect(pending.ownerId).toBe(admin.id);
+  expect(pending.publishedAt).toBeNull();
+
+  await cleanupTestUser(admin.id);
 });
