@@ -2,10 +2,10 @@ import "server-only";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { category, city, listing, listingImage, savedListing } from "@/db/schema";
+import { category, city, listing, listingImage, promotion, savedListing } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
 import type { PublicListingCardDTO } from "@/data/catalog/public.dto";
-import { cardColumns, toCard } from "@/data/catalog/public-listing.dal";
+import { activePromotionJoin, cardColumns, toCard } from "@/data/catalog/public-listing.dal";
 import type { ToggleSavedResult } from "./saved.dto";
 
 export class SavedDAL {
@@ -47,6 +47,7 @@ export class SavedDAL {
       .innerJoin(category, eq(listing.categoryId, category.id))
       .innerJoin(city, eq(listing.cityId, city.id))
       .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
+      .leftJoin(promotion, activePromotionJoin())
       .where(eq(savedListing.userId, this.user.id))
       .orderBy(desc(savedListing.createdAt));
     return rows.map(toCard);

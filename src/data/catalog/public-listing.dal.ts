@@ -12,7 +12,8 @@ import type {
 
 // една активна промоция per обява е app-level инвариант (activate + projectOrderEvent guard,
 // виж billing.dal.ts) → този LEFT JOIN връща максимум 1 ред на listing, без fanout риск.
-function activePromotionJoin(): SQL {
+// export: ВСЕКИ консуматор на cardColumns трябва да join-не promotion с това условие (напр. SavedDAL).
+export function activePromotionJoin(): SQL {
   return and(
     eq(promotion.listingId, listing.id),
     lte(promotion.startsAt, sql`now()`),
