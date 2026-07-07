@@ -62,7 +62,7 @@ test("изтекъл гратис → published обявите се скрива
     graceUntil: new Date(Date.now() + 24 * 60 * 60 * 1000),
   });
   const dal = ListingDAL.for(sessionUser);
-  const l = await dal.createDraft({ title: "Изтекъл Гратис Тест", categoryId, cityId });
+  const l = await dal.createDraft({ title: "Изтекъл Гратис Cron Тест", categoryId, cityId });
   await dal.submit(l.id);
   // M2.3: submit() → pending_approval; admin approve() (Задача 5) още не съществува →
   // директен DB update симулира одобрение, за да остане cron-логиката (изисква published) тестваема.
