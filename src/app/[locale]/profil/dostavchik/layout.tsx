@@ -11,6 +11,7 @@ export default function DostavchikLayout({ children }: { children: React.ReactNo
   const tabs = [
     { href: "/profil/dostavchik/obiavi", label: t("listings") },
     { href: "/profil/dostavchik/abonament", label: t("subscription") },
+    { href: "/profil/dostavchik/promotirane", label: t("promotion") },
   ] as const;
 
   return (

@@ -10,6 +10,7 @@ import { formatEuro } from "@/lib/money";
 
 export default async function MyListingsPage() {
   const t = await getTranslations("Vendor");
+  const tb = await getTranslations("Billing.promo");
   const user = await requireUser();
   const listings = await ListingDAL.for(user).listMine();
 
@@ -17,9 +18,14 @@ export default async function MyListingsPage() {
     <main className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="font-serif text-3xl">{t("myListings")}</h1>
-        <Button asChild>
-          <Link href="/profil/dostavchik/obiavi/nova">{t("newListing")}</Link>
-        </Button>
+        <div className="flex items-center gap-3">
+          <Link href="/profil/dostavchik/promotirane" className="text-sm text-muted-foreground underline">
+            {tb("entryLink")}
+          </Link>
+          <Button asChild>
+            <Link href="/profil/dostavchik/obiavi/nova">{t("newListing")}</Link>
+          </Button>
+        </div>
       </div>
       {listings.length === 0 ? (
         <p className="text-muted-foreground">{t("noListings")}</p>
