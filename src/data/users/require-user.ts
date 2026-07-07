@@ -15,6 +15,8 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
   const u = session.user;
+  // блокиран/деактивиран потребител (soft-delete) → третирай като нелогнат за всички пътища
+  if ((u as { deletedAt?: Date | null }).deletedAt != null) return null;
   return {
     id: u.id,
     email: u.email,

@@ -2,11 +2,11 @@ import "server-only";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { category, city, listing, user } from "@/db/schema";
+import { category, city, listing, session, user } from "@/db/schema";
 import { BillingDAL } from "@/data/billing/billing.dal";
 import { listingApprovedEmail, listingRejectedEmail, sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
-import type { AdminListingRowDTO } from "./admin.dto";
+import type { AdminListingRowDTO, AdminUserDTO } from "./admin.dto";
 
 // fire-and-forget: чете email от user; огледален на billing.dal.ts:124-139 (never-throw в caller-а)
 async function notifyListingApproved(userId: string, listingTitle: string, slug: string): Promise<void> {
@@ -111,5 +111,47 @@ export class AdminDAL {
       .returning({ slug: listing.slug, status: listing.status });
     if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
     return { slug: updated.slug, status: updated.status };
+  }
+
+  static async listUsers(): Promise<AdminUserDTO[]> {
+    const rows = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        deletedAt: user.deletedAt,
+        createdAt: user.createdAt,
+      })
+      .from(user)
+      .orderBy(desc(user.createdAt));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      isAdmin: r.isAdmin ?? false,
+      createdAt: r.createdAt.toISOString(),
+      deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null,
+    }));
+  }
+
+  // Блокиране = soft-delete (deletedAt) + инвалидация на живите сесии. Enforcement-ът е в
+  // getCurrentUser (единствен choke-point). Self-guard: админ не блокира себе си.
+  static async blockUser(actorId: string, targetId: string): Promise<void> {
+    if (actorId === targetId) throw new TRPCError({ code: "FORBIDDEN", message: "SELF_ACTION" });
+    await db.transaction(async (tx) => {
+      await tx.update(user).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(user.id, targetId));
+      await tx.delete(session).where(eq(session.userId, targetId));
+    });
+  }
+
+  static async unblockUser(targetId: string): Promise<void> {
+    await db.update(user).set({ deletedAt: null, updatedAt: new Date() }).where(eq(user.id, targetId));
+  }
+
+  // Self-guard: админ не де-админва (нито промотира) себе си — предпазва от заключване извън панела.
+  static async setAdmin(actorId: string, targetId: string, value: boolean): Promise<void> {
+    if (actorId === targetId) throw new TRPCError({ code: "FORBIDDEN", message: "SELF_ACTION" });
+    await db.update(user).set({ isAdmin: value, updatedAt: new Date() }).where(eq(user.id, targetId));
   }
 }
