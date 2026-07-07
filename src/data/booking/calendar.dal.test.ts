@@ -1,11 +1,9 @@
 import { afterEach, expect, test } from "vitest";
-import { eq } from "drizzle-orm";
 import { CalendarDAL } from "./calendar.dal";
 import {
-  testDb, createTestUser, cleanupTestUser, createTestListing, getTestCategoryId, getTestCityId,
+  createTestUser, cleanupTestUser, createTestListing, getTestCategoryId, getTestCityId,
   createTestBooking,
 } from "@/test/db-helpers";
-import * as schema from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
 
 let cleanupIds: string[] = [];
