@@ -232,7 +232,10 @@ export class BookingDAL {
             .filter((p) => p.isFullDay || (!!p.startTime && !!p.endTime && overlaps(row.startTime!, row.endTime!, p.startTime, p.endTime)))
             .map((p) => p.id);
       if (toDecline.length > 0) {
-        await tx.update(booking).set({ status: "auto_declined" }).where(inArray(booking.id, toDecline));
+        // CAS на status='pending': concurrent cancel/decline (без advisory lock) може да е commit-нал
+        // терминален статус в прозореца след горния SELECT — не го презаписвай (D8 audit следа).
+        await tx.update(booking).set({ status: "auto_declined" })
+          .where(and(inArray(booking.id, toDecline), eq(booking.status, "pending")));
       }
 
       return { slug: row.listingSlug, customerId: row.customerId, listingTitle: row.listingTitle, eventDate: row.eventDate };

@@ -251,3 +251,23 @@ test("autoComplete(): confirmed с минала дата → completed; pending 
   const [c3] = await testDb.select().from(schema.booking).where(eq(schema.booking.id, futurePending.id));
   expect(c3?.status).toBe("pending");
 });
+
+test("confirm(): auto_decline не пипа вече терминална заявка на същата дата (CAS status='pending')", async () => {
+  // Регресия за CRITICAL: auto_decline UPDATE носи `AND status='pending'`, за да не презапише
+  // терминален статус (declined/cancelled), който concurrent decline/cancel е commit-нал в прозореца
+  // между SELECT и UPDATE. Истинският race не е in-process възпроизводим; тук асертираме наблюдаемия
+  // инвариант — auto_decline засяга само pending редове.
+  const { vendor, listingId } = await vendorWithListing();
+  const st = await createTestServiceType(listingId, { kind: "full_day", name: "Цял ден" });
+  const customerA = await newCustomer();
+  const customerB = await newCustomer();
+
+  const toConfirm = await BookingDAL.for(customerA).request({ listingId, serviceTypeId: st.id, eventDate: "2099-08-15", phone: "0888000001" });
+  // B е вече терминална (declined) на същата дата — seed-ната директно
+  const declinedB = await createTestBooking(listingId, st.id, customerB.id, { status: "declined", isFullDay: true, eventDate: "2099-08-15", phone: "0888000002" });
+
+  await BookingDAL.for(vendor).confirm(toConfirm.id);
+
+  const [bRow] = await testDb.select().from(schema.booking).where(eq(schema.booking.id, declinedB.id));
+  expect(bRow?.status).toBe("declined"); // НЕ auto_declined — терминалната следа е запазена
+});
