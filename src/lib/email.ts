@@ -65,3 +65,25 @@ export function listingsHiddenEmail(input: { count: number }): { subject: string
 </div>`;
   return { subject, html };
 }
+
+export function listingApprovedEmail(input: { listingTitle: string; listingUrl: string }): { subject: string; html: string } {
+  const subject = `Обявата Ви „${input.listingTitle}" е одобрена`;
+  const html = `<div style="font-family:sans-serif;line-height:1.5;color:#111">
+  <p>Здравейте,</p>
+  <p>Обявата Ви <strong>${escapeHtml(input.listingTitle)}</strong> бе прегледана и одобрена — вече е публично видима.</p>
+  <p><a href="${input.listingUrl}">Виж обявата</a></p>
+</div>`;
+  return { subject, html };
+}
+
+export function listingRejectedEmail(input: { listingTitle: string; reason: string; editUrl: string }): { subject: string; html: string } {
+  const subject = `Обявата Ви „${input.listingTitle}" бе отхвърлена`;
+  const html = `<div style="font-family:sans-serif;line-height:1.5;color:#111">
+  <p>Здравейте,</p>
+  <p>Обявата Ви <strong>${escapeHtml(input.listingTitle)}</strong> не бе одобрена по следната причина:</p>
+  <blockquote style="border-left:3px solid #ddd;margin:0;padding:0 0 0 12px;color:#333">${escapeHtml(input.reason)}</blockquote>
+  <p>Можете да редактирате обявата и да я подадете отново за преглед.</p>
+  <p><a href="${input.editUrl}">Редактирай обявата</a></p>
+</div>`;
+  return { subject, html };
+}

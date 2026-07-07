@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { listingsHiddenEmail, newMessageEmail, sendEmail, subscriptionPastDueEmail } from "./email";
+import { listingApprovedEmail, listingRejectedEmail, listingsHiddenEmail, newMessageEmail, sendEmail, subscriptionPastDueEmail } from "./email";
 
 test("newMessageEmail: subject + html съдържат обява/тяло/получател/URL", () => {
   const { subject, html } = newMessageEmail({
@@ -44,4 +44,26 @@ test("listingsHiddenEmail: съдържа броя скрити обяви и л
   expect(subject.length).toBeGreaterThan(0);
   expect(html).toContain("3");
   expect(html).toContain("/profil/dostavchik/abonament");
+});
+
+test("listingApprovedEmail: съдържа заглавието на обявата и линка", () => {
+  const { subject, html } = listingApprovedEmail({
+    listingTitle: "Фото Студио", listingUrl: "https://example.com/obiava/foto-studio",
+  });
+  expect(subject).toContain("Фото Студио");
+  expect(html).toContain("Фото Студио");
+  expect(html).toContain("https://example.com/obiava/foto-studio");
+});
+
+test("listingRejectedEmail: escape-ва HTML в reason и съдържа editUrl", () => {
+  const { subject, html } = listingRejectedEmail({
+    listingTitle: "Фото Студио",
+    reason: "<script>x</script> липсват снимки",
+    editUrl: "https://example.com/profil/dostavchik/obiavi/abc",
+  });
+  expect(subject).toContain("Фото Студио");
+  expect(html).not.toContain("<script>");
+  expect(html).toContain("&lt;script&gt;");
+  expect(html).toContain("липсват снимки");
+  expect(html).toContain("https://example.com/profil/dostavchik/obiavi/abc");
 });
