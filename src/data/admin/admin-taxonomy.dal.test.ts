@@ -88,7 +88,7 @@ test("Задача 10: attrDef create → update (add option OK на in-use) →
     id, categoryId, key: `k_${randomUUID().slice(0, 8)}`, labelBg: "Стил", labelEn: "Style",
     type: "number", options: null, showAsFilter: false, showAsChip: true, sortOrder: 50,
   });
-  let defs = await AdminDAL.listByCategoryAdmin(categoryId);
+  const defs = await AdminDAL.listByCategoryAdmin(categoryId);
   expect(defs.find((d) => d.id === id)?.type).toBe("number");
 
   // върни на single с 1 option, после го направи in-use
