@@ -1,8 +1,8 @@
 import "server-only";
-import { and, count, eq, inArray, lt, ne } from "drizzle-orm";
+import { and, count, eq, gt, inArray, lt, lte, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { category, listing, setting, subscription, user } from "@/db/schema";
+import { category, listing, promotion, setting, subscription, user } from "@/db/schema";
 import { listingsHiddenEmail, sendEmail, subscriptionPastDueEmail } from "@/lib/email";
 import type { SessionUser } from "@/data/users/require-user";
 import type { BillingOverviewDTO, SubscriptionDTO, SystemHiddenListingDTO } from "./billing.dto";
@@ -65,11 +65,13 @@ export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export type BillingSettings = {
   limits: { standard: number; premiumPerCategory: number };
   graceDays: number;
+  promo: { durationDays: number; premiumSlots: number; carouselSize: number };
 };
 
 const DEFAULT_SETTINGS: BillingSettings = {
   limits: { standard: 1, premiumPerCategory: 2 },
   graceDays: 7,
+  promo: { durationDays: 30, premiumSlots: 2, carouselSize: 8 },
 };
 
 // ponytail: четено извън транзакцията — лимитите почти никога не се сменят,
@@ -78,12 +80,14 @@ export async function getBillingSettings(): Promise<BillingSettings> {
   const rows = await db
     .select()
     .from(setting)
-    .where(inArray(setting.key, ["billing.limits", "billing.graceDays"]));
+    .where(inArray(setting.key, ["billing.limits", "billing.graceDays", "billing.promo"]));
   const limits = rows.find((r) => r.key === "billing.limits")?.value as BillingSettings["limits"] | undefined;
   const graceDays = rows.find((r) => r.key === "billing.graceDays")?.value as number | undefined;
+  const promo = rows.find((r) => r.key === "billing.promo")?.value as BillingSettings["promo"] | undefined;
   return {
     limits: limits ?? DEFAULT_SETTINGS.limits,
     graceDays: graceDays ?? DEFAULT_SETTINGS.graceDays,
+    promo: promo ?? DEFAULT_SETTINGS.promo,
   };
 }
 
@@ -269,6 +273,33 @@ export class BillingDAL {
       : await countOwnerPublished(tx, userId, excludeListingId, categoryId);
     const limit = sub.plan === "standard" ? limits.standard : limits.premiumPerCategory;
     if (n >= limit) throw new TRPCError({ code: "FORBIDDEN", message: "LIMIT_REACHED" });
+  }
+
+  // Guard за «една активна промоция per обява» (contract решение #2) — активен прозорец startsAt<=now<endsAt.
+  // Ползва се от activate() (Задача 4) и projectOrderEvent() (Задача 3), винаги вътре в транзакция.
+  static async activePromotionForListing(tx: Transaction, listingId: string): Promise<boolean> {
+    const now = new Date();
+    const [row] = await tx
+      .select({ id: promotion.id })
+      .from(promotion)
+      .where(and(eq(promotion.listingId, listingId), lte(promotion.startsAt, now), gt(promotion.endsAt, now)));
+    return !!row;
+  }
+
+  // Брой активни 'premium_included' промоции на owner-а — за premiumSlots лимита в activate() (Задача 4).
+  static async countActiveIncludedPromotions(tx: Transaction, userId: string): Promise<number> {
+    const now = new Date();
+    const [row] = await tx
+      .select({ n: count() })
+      .from(promotion)
+      .innerJoin(listing, eq(promotion.listingId, listing.id))
+      .where(and(
+        eq(listing.ownerId, userId),
+        eq(promotion.source, "premium_included"),
+        lte(promotion.startsAt, now),
+        gt(promotion.endsAt, now),
+      ));
+    return row?.n ?? 0;
   }
 
   // Идемпотентна проекция на Polar subscription webhook → subscription ред (upsert по userId).

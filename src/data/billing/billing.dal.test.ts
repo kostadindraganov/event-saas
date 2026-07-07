@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestUser, cleanupTestUser, createTestSubscription, getTestCityId, testDb } from "@/test/db-helpers";
+import { createTestUser, cleanupTestUser, createTestSubscription, createTestPromotion, getTestCityId, testDb } from "@/test/db-helpers";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { ListingDAL } from "@/data/catalog/listing.dal";
@@ -230,4 +230,53 @@ test("expireGracePeriods: per-user грешка не убива batch-а (resolv
   expect(result.users).toContain(id);
   const [row] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, lid));
   expect(row?.status).toBe("hidden");
+});
+
+test("getBillingSettings(): promo defaults (seed или code-side)", async () => {
+  const s = await getBillingSettings();
+  expect(s.promo.durationDays).toBeGreaterThanOrEqual(1);
+  expect(s.promo.premiumSlots).toBeGreaterThanOrEqual(1);
+  expect(s.promo.carouselSize).toBeGreaterThanOrEqual(1);
+});
+
+test("activePromotionForListing: без ред → false; активна (startsAt<=now<endsAt) → true", async () => {
+  const { user } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Промо Guard Тест", categoryId: categoryA!, cityId });
+  const now = new Date();
+
+  await expect(testDb.transaction((tx) => BillingDAL.activePromotionForListing(tx, draft.id))).resolves.toBe(false);
+
+  await createTestPromotion(draft.id, {
+    source: "purchased",
+    startsAt: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+    endsAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+  });
+  await expect(testDb.transaction((tx) => BillingDAL.activePromotionForListing(tx, draft.id))).resolves.toBe(true);
+});
+
+test("activePromotionForListing: изтекла (endsAt<now) → false", async () => {
+  const { user } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Промо Изтекла Тест", categoryId: categoryA!, cityId });
+  const now = new Date();
+  await createTestPromotion(draft.id, {
+    source: "purchased",
+    startsAt: new Date(now.getTime() - 48 * 60 * 60 * 1000),
+    endsAt: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+  });
+  await expect(testDb.transaction((tx) => BillingDAL.activePromotionForListing(tx, draft.id))).resolves.toBe(false);
+});
+
+test("countActiveIncludedPromotions: брои само активни 'premium_included' на owner-а, не 'purchased'", async () => {
+  const { user, id } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA, categoryB] = await twoCategories();
+  const a = await ListingDAL.for(user).createDraft({ title: "Промо Слот А", categoryId: categoryA!, cityId });
+  const b = await ListingDAL.for(user).createDraft({ title: "Промо Слот Б", categoryId: categoryB!, cityId });
+  await createTestPromotion(a.id, { source: "premium_included" });
+  await createTestPromotion(b.id, { source: "purchased" });
+  await expect(testDb.transaction((tx) => BillingDAL.countActiveIncludedPromotions(tx, id))).resolves.toBe(1);
 });

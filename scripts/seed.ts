@@ -46,6 +46,7 @@ async function main() {
     .values([
       { key: "billing.limits", value: { standard: 1, premiumPerCategory: 2 } },
       { key: "billing.graceDays", value: 7 },
+      { key: "billing.promo", value: { durationDays: 30, premiumSlots: 2, carouselSize: 8 } },
     ])
     .onConflictDoNothing({ target: setting.key });
 
