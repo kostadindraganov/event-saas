@@ -153,3 +153,43 @@ test("generateDaySlots: durationMinutes по-голям от прозореца 
     durationMinutes: 60, blocked: false, confirmedFullDay: false, confirmedHourly: [],
   })).toEqual([]);
 });
+
+test("generateDaySlots: прозорец до полунощ, нищо не се събира → [] (НЕ виси)", () => {
+  // старият код wrap-ваше края %24 и никога не терминираше за този вход
+  const slots = generateDaySlots({
+    rules: [{ startTime: "23:00", endTime: "23:59" }],
+    durationMinutes: 90, blocked: false, confirmedFullDay: false, confirmedHourly: [],
+  });
+  expect(slots).toEqual([]);
+});
+
+test("generateDaySlots: слот, който би прехвърлил полунощ, се изключва", () => {
+  const slots = generateDaySlots({
+    rules: [{ startTime: "22:00", endTime: "23:59" }],
+    durationMinutes: 60, blocked: false, confirmedFullDay: false, confirmedHourly: [],
+  });
+  expect(slots).toEqual([{ startTime: "22:00", endTime: "23:00" }]);
+});
+
+test("generateDaySlots: неравномерно деление на прозореца — последен частичен слот отпада", () => {
+  const slots = generateDaySlots({
+    rules: [{ startTime: "09:00", endTime: "10:15" }],
+    durationMinutes: 30, blocked: false, confirmedFullDay: false, confirmedHourly: [],
+  });
+  expect(slots).toEqual([
+    { startTime: "09:00", endTime: "09:30" },
+    { startTime: "09:30", endTime: "10:00" },
+  ]);
+});
+
+test("generateDaySlots: rule времена във format \"HH:MM:SS\" → изходът е нормализиран до \"HH:MM\"", () => {
+  const slots = generateDaySlots({
+    rules: [{ startTime: "09:00:00", endTime: "11:00:00" }],
+    durationMinutes: 60, blocked: false, confirmedFullDay: false, confirmedHourly: [],
+  });
+  expect(slots[0].startTime).toBe("09:00");
+  expect(slots).toEqual([
+    { startTime: "09:00", endTime: "10:00" },
+    { startTime: "10:00", endTime: "11:00" },
+  ]);
+});
