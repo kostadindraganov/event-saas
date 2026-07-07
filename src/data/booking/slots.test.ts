@@ -187,7 +187,7 @@ test("generateDaySlots: rule времена във format \"HH:MM:SS\" → из�
     rules: [{ startTime: "09:00:00", endTime: "11:00:00" }],
     durationMinutes: 60, blocked: false, confirmedFullDay: false, confirmedHourly: [],
   });
-  expect(slots[0].startTime).toBe("09:00");
+  expect(slots[0]?.startTime).toBe("09:00");
   expect(slots).toEqual([
     { startTime: "09:00", endTime: "10:00" },
     { startTime: "10:00", endTime: "11:00" },
