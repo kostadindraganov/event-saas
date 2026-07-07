@@ -4,6 +4,7 @@ import { and, count, eq, gt, inArray, lt, lte, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { category, listing, promotion, setting, subscription, user } from "@/db/schema";
+import { BillingSettingsSchema } from "@/data/admin/admin.dto";
 import { listingsHiddenEmail, sendEmail, subscriptionPastDueEmail } from "@/lib/email";
 import type { SessionUser } from "@/data/users/require-user";
 import type { BillingOverviewDTO, MyPromotionListingDTO, SubscriptionDTO, SystemHiddenListingDTO } from "./billing.dto";
@@ -94,13 +95,13 @@ export async function getBillingSettings(): Promise<BillingSettings> {
     .select()
     .from(setting)
     .where(inArray(setting.key, ["billing.limits", "billing.graceDays", "billing.promo"]));
-  const limits = rows.find((r) => r.key === "billing.limits")?.value as BillingSettings["limits"] | undefined;
-  const graceDays = rows.find((r) => r.key === "billing.graceDays")?.value as number | undefined;
-  const promo = rows.find((r) => r.key === "billing.promo")?.value as BillingSettings["promo"] | undefined;
+  const limits = BillingSettingsSchema.shape.limits.safeParse(rows.find((r) => r.key === "billing.limits")?.value);
+  const graceDays = BillingSettingsSchema.shape.graceDays.safeParse(rows.find((r) => r.key === "billing.graceDays")?.value);
+  const promo = BillingSettingsSchema.shape.promo.safeParse(rows.find((r) => r.key === "billing.promo")?.value);
   return {
-    limits: limits ?? DEFAULT_SETTINGS.limits,
-    graceDays: graceDays ?? DEFAULT_SETTINGS.graceDays,
-    promo: promo ?? DEFAULT_SETTINGS.promo,
+    limits: limits.success ? limits.data : DEFAULT_SETTINGS.limits,
+    graceDays: graceDays.success ? graceDays.data : DEFAULT_SETTINGS.graceDays,
+    promo: promo.success ? promo.data : DEFAULT_SETTINGS.promo,
   };
 }
 

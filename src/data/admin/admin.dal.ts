@@ -2,11 +2,11 @@ import "server-only";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { category, city, listing, session, user } from "@/db/schema";
-import { BillingDAL } from "@/data/billing/billing.dal";
+import { category, city, listing, session, setting, user } from "@/db/schema";
+import { BillingDAL, getBillingSettings, type BillingSettings } from "@/data/billing/billing.dal";
 import { listingApprovedEmail, listingRejectedEmail, sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
-import type { AdminListingRowDTO, AdminUserDTO } from "./admin.dto";
+import type { AdminListingRowDTO, AdminUserDTO, BillingSettingsInput } from "./admin.dto";
 
 // fire-and-forget: чете email от user; огледален на billing.dal.ts:124-139 (never-throw в caller-а)
 async function notifyListingApproved(userId: string, listingTitle: string, slug: string): Promise<void> {
@@ -153,5 +153,22 @@ export class AdminDAL {
   static async setAdmin(actorId: string, targetId: string, value: boolean): Promise<void> {
     if (actorId === targetId) throw new TRPCError({ code: "FORBIDDEN", message: "SELF_ACTION" });
     await db.update(user).set({ isAdmin: value, updatedAt: new Date() }).where(eq(user.id, targetId));
+  }
+
+  static getSettings(): Promise<BillingSettings> {
+    return getBillingSettings();
+  }
+
+  // Per-ключ upsert (target=setting.key). getBillingSettings чете некеширано → важи веднага.
+  static async updateSettings(input: BillingSettingsInput): Promise<BillingSettings> {
+    await db.transaction(async (tx) => {
+      await tx.insert(setting).values({ key: "billing.limits", value: input.limits })
+        .onConflictDoUpdate({ target: setting.key, set: { value: input.limits } });
+      await tx.insert(setting).values({ key: "billing.graceDays", value: input.graceDays })
+        .onConflictDoUpdate({ target: setting.key, set: { value: input.graceDays } });
+      await tx.insert(setting).values({ key: "billing.promo", value: input.promo })
+        .onConflictDoUpdate({ target: setting.key, set: { value: input.promo } });
+    });
+    return getBillingSettings();
   }
 }
