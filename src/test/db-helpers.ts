@@ -99,6 +99,76 @@ export async function createTestListing(
   return row;
 }
 
+export async function createTestServiceType(
+  listingId: string,
+  opts: {
+    kind: "full_day" | "hourly";
+    name?: string;
+    durationMinutes?: number | null;
+    priceFromCents?: number | null;
+    isActive?: boolean;
+  },
+) {
+  const [row] = await testDb
+    .insert(schema.bookingServiceType)
+    .values({
+      listingId,
+      kind: opts.kind,
+      name: opts.name ?? "Тест Услуга",
+      durationMinutes: opts.durationMinutes ?? (opts.kind === "hourly" ? 60 : null),
+      priceFromCents: opts.priceFromCents ?? null,
+      isActive: opts.isActive ?? true,
+    })
+    .returning();
+  if (!row) throw new Error("INSERT_FAILED");
+  return row;
+}
+
+export async function createTestAvailability(
+  listingId: string,
+  opts: { weekday: number; startTime: string; endTime: string },
+) {
+  const [row] = await testDb
+    .insert(schema.availabilityRule)
+    .values({ listingId, weekday: opts.weekday, startTime: opts.startTime, endTime: opts.endTime })
+    .returning();
+  if (!row) throw new Error("INSERT_FAILED");
+  return row;
+}
+
+export async function createTestBooking(
+  listingId: string,
+  serviceTypeId: string,
+  customerId: string,
+  opts: {
+    status?: "pending" | "confirmed" | "declined" | "auto_declined" | "completed" | "cancelled_by_customer" | "cancelled_by_vendor";
+    isFullDay: boolean;
+    eventDate: string;
+    startTime?: string | null;
+    endTime?: string | null;
+    phone: string;
+    message?: string | null;
+  },
+) {
+  const [row] = await testDb
+    .insert(schema.booking)
+    .values({
+      listingId,
+      serviceTypeId,
+      customerId,
+      status: opts.status ?? "pending",
+      isFullDay: opts.isFullDay,
+      eventDate: opts.eventDate,
+      startTime: opts.startTime ?? null,
+      endTime: opts.endTime ?? null,
+      phone: opts.phone,
+      message: opts.message ?? null,
+    })
+    .returning();
+  if (!row) throw new Error("INSERT_FAILED");
+  return row;
+}
+
 export async function cleanupTestUser(userId: string) {
   // thread FK-тата (customerId/vendorId) са no-action → трий нишките първо (message каскадира от thread)
   await testDb.delete(schema.thread).where(
@@ -113,6 +183,11 @@ export async function cleanupTestUser(userId: string) {
     .from(schema.listing)
     .where(eq(schema.listing.ownerId, userId));
   await testDb.delete(schema.promotion).where(inArray(schema.promotion.listingId, ownListingIds));
+  // booking.listingId/serviceTypeId/customerId са no-action (без cascade) → трий ПРЕДИ listing/user.
+  // bookingServiceType/availabilityRule/blockedDate каскадират сами при delete на listing по-долу.
+  await testDb.delete(schema.booking).where(
+    or(inArray(schema.booking.listingId, ownListingIds), eq(schema.booking.customerId, userId)),
+  );
   // обявите каскадират децата си; savedListing.userId има onDelete cascade → авто при delete user
   await testDb.delete(schema.listing).where(eq(schema.listing.ownerId, userId));
   await testDb.delete(schema.user).where(eq(schema.user.id, userId));

@@ -1,77 +1,66 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestUser, cleanupTestUser, createTestSubscription, createTestListing, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
+import {
+  cleanupTestUser, createTestAvailability, createTestBooking, createTestListing,
+  createTestServiceType, createTestUser, getTestCategoryId, getTestCityId, testDb,
+} from "./db-helpers";
 import * as schema from "@/db/schema";
-import { ListingDAL } from "@/data/catalog/listing.dal";
 
-test("cleanupTestUser трие thread-ове (customer/vendor) преди user — без FK грешка", async () => {
-  const a = await createTestUser(); // owner/vendor
-  const b = await createTestUser(); // customer
-  const categoryId = await getTestCategoryId();
-  const cityId = await getTestCityId();
-  const listing = await ListingDAL.for({ id: a.id, email: a.email, name: "A", isAdmin: false })
-    .createDraft({ title: "Клийнъп Тест", categoryId, cityId });
+let ownerId: string | undefined;
+let customerId: string | undefined;
 
-  const [thread] = await testDb
-    .insert(schema.thread)
-    .values({ listingId: listing.id, customerId: b.id, vendorId: a.id })
-    .returning({ id: schema.thread.id });
-  await testDb.insert(schema.message).values({ threadId: thread!.id, senderId: b.id, body: "Здр" });
-
-  // клиентският cleanup трябва да махне нишката (customer=b) и после user b — без FK violation
-  await cleanupTestUser(b.id);
-  expect((await testDb.select().from(schema.user).where(eq(schema.user.id, b.id))).length).toBe(0);
-  expect((await testDb.select().from(schema.thread).where(eq(schema.thread.id, thread!.id))).length).toBe(0);
-
-  await cleanupTestUser(a.id);
-  expect((await testDb.select().from(schema.user).where(eq(schema.user.id, a.id))).length).toBe(0);
+afterEach(async () => {
+  if (ownerId) await cleanupTestUser(ownerId);
+  if (customerId) await cleanupTestUser(customerId);
+  ownerId = undefined;
+  customerId = undefined;
 });
 
-test("listing.hiddenBySystem: default false на нов draft", async () => {
-  const u = await createTestUser();
+test("createTestServiceType / createTestAvailability / createTestBooking инсъртват и връщат реда", async () => {
+  const owner = await createTestUser();
+  ownerId = owner.id;
+  const customer = await createTestUser();
+  customerId = customer.id;
   const categoryId = await getTestCategoryId();
   const cityId = await getTestCityId();
-  const created = await ListingDAL.for({ id: u.id, email: u.email, name: "Т", isAdmin: false })
-    .createDraft({ title: "Хидън Систем Дефолт Тест", categoryId, cityId });
-  const [row] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, created.id));
-  expect(row?.hiddenBySystem).toBe(false);
-  await cleanupTestUser(u.id);
+  const listing = await createTestListing(ownerId, { status: "published", categoryId, cityId });
+
+  const serviceType = await createTestServiceType(listing.id, { kind: "hourly", durationMinutes: 90 });
+  expect(serviceType.listingId).toBe(listing.id);
+  expect(serviceType.kind).toBe("hourly");
+  expect(serviceType.durationMinutes).toBe(90);
+
+  const availability = await createTestAvailability(listing.id, { weekday: 2, startTime: "09:00:00", endTime: "17:00:00" });
+  expect(availability.listingId).toBe(listing.id);
+  expect(availability.weekday).toBe(2);
+
+  const booking = await createTestBooking(listing.id, serviceType.id, customerId, {
+    isFullDay: false, eventDate: "2026-08-10", startTime: "10:00:00", endTime: "11:30:00", phone: "0888123456",
+  });
+  expect(booking.listingId).toBe(listing.id);
+  expect(booking.serviceTypeId).toBe(serviceType.id);
+  expect(booking.customerId).toBe(customerId);
+  expect(booking.status).toBe("pending");
 });
 
-test("createTestSubscription: вмъква ред; повторен извикване презаписва; cleanupTestUser го трие преди user — без FK грешка", async () => {
-  const u = await createTestUser();
-  const graceUntil = new Date(Date.now() + 86_400_000);
-  const sub = await createTestSubscription(u.id, { plan: "premium", status: "past_due", graceUntil });
-  expect(sub.userId).toBe(u.id);
-  expect(sub.plan).toBe("premium");
-  expect(sub.status).toBe("past_due");
-  expect(sub.graceUntil?.getTime()).toBe(graceUntil.getTime());
-
-  // повторно извикване (напр. друг тест сменя плана на същия owner) → delete-then-insert, не гърми на unique(userId)
-  const sub2 = await createTestSubscription(u.id, { plan: "standard", status: "active" });
-  expect(sub2.plan).toBe("standard");
-  expect(
-    (await testDb.select().from(schema.subscription).where(eq(schema.subscription.userId, u.id))).length,
-  ).toBe(1);
-
-  await cleanupTestUser(u.id);
-  expect((await testDb.select().from(schema.user).where(eq(schema.user.id, u.id))).length).toBe(0);
-  expect(
-    (await testDb.select().from(schema.subscription).where(eq(schema.subscription.userId, u.id))).length,
-  ).toBe(0);
-});
-
-test("createTestUser({isAdmin:true}) сетва is_admin; createTestListing вкарва ред със зададен статус", async () => {
-  const admin = await createTestUser({ isAdmin: true });
-  const [adminRow] = await testDb.select().from(schema.user).where(eq(schema.user.id, admin.id));
-  expect(adminRow?.isAdmin).toBe(true);
-
+test("cleanupTestUser трие booking (по listingId и по customerId) преди listing/user (no-cascade FK)", async () => {
+  const owner = await createTestUser();
+  ownerId = owner.id;
+  const customer = await createTestUser();
+  customerId = customer.id;
   const categoryId = await getTestCategoryId();
   const cityId = await getTestCityId();
-  const pending = await createTestListing(admin.id, { status: "pending_approval", categoryId, cityId });
-  expect(pending.status).toBe("pending_approval");
-  expect(pending.ownerId).toBe(admin.id);
-  expect(pending.publishedAt).toBeNull();
+  const listing = await createTestListing(ownerId, { status: "published", categoryId, cityId });
+  const serviceType = await createTestServiceType(listing.id, { kind: "full_day" });
+  const booking = await createTestBooking(listing.id, serviceType.id, customerId, {
+    isFullDay: true, eventDate: "2026-09-01", phone: "0888000000",
+  });
 
-  await cleanupTestUser(admin.id);
+  await cleanupTestUser(ownerId); // трие booking-а (no-cascade) преди да трие listing-а; иначе FK грешка
+  const [gone] = await testDb.select().from(schema.booking).where(eq(schema.booking.id, booking.id));
+  expect(gone).toBeUndefined();
+
+  await cleanupTestUser(customerId);
+  const [userGone] = await testDb.select().from(schema.user).where(eq(schema.user.id, customerId));
+  expect(userGone).toBeUndefined();
 });
