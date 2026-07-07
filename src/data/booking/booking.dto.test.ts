@@ -22,3 +22,9 @@ test("BookingRequestSchema: валиден parse", () => {
   const parsed = BookingRequestSchema.parse({ listingId, serviceTypeId, eventDate: "2026-08-10", phone: "0888123456" });
   expect(parsed.eventDate).toBe("2026-08-10");
 });
+
+test("BookingRequestSchema: не-ISO/не-padnata дата се отхвърля (trust boundary)", () => {
+  for (const eventDate of ["2026-7-1", "2026/08/10", "10-08-2026", "garbage", ""]) {
+    expect(BookingRequestSchema.safeParse({ listingId, serviceTypeId, eventDate, phone: "0888123456" }).success).toBe(false);
+  }
+});

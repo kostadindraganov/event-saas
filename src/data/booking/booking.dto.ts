@@ -8,6 +8,10 @@ export const BOOKING_STATUSES = [
 export type ServiceKind = (typeof SERVICE_KINDS)[number];
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
+// Дата на trust boundary: изисквай zero-padded ISO (иначе pg 22007 → 500 на публичния slots.day,
+// а не-padnat низ би заобиколил past-date guard-а чрез лексикографско сравнение).
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "INVALID_DATE");
+
 export type ServiceTypeDTO = {
   id: string;
   listingId: string;
@@ -75,7 +79,7 @@ export type BlockedDateDTO = {
 
 export const BlockedDateCreateSchema = z.object({
   listingId: z.uuid(),
-  date: z.string(),
+  date: isoDate,
   note: z.string().optional(),
 });
 export type BlockedDateCreateInput = z.infer<typeof BlockedDateCreateSchema>;
@@ -109,7 +113,7 @@ export type BookingDTO = {
 export const BookingRequestSchema = z.object({
   listingId: z.uuid(),
   serviceTypeId: z.uuid(),
-  eventDate: z.string(),
+  eventDate: isoDate,
   startTime: z.string().optional(),
   phone: z.string().min(5),
   message: z.string().optional(),
@@ -131,5 +135,5 @@ export const AvailabilityMonthInput = z.object({
 export const SlotsDayInput = z.object({
   listingId: z.uuid(),
   serviceTypeId: z.uuid(),
-  date: z.string(),
+  date: isoDate,
 });
