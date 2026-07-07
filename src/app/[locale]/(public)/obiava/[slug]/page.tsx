@@ -9,6 +9,7 @@ import { SaveButton } from "@/components/saved/save-button";
 import { ListingGallery } from "@/components/catalog/listing-gallery";
 import { PackageCard } from "@/components/catalog/package-card";
 import { InquiryForm } from "@/components/messaging/inquiry-form";
+import { BookingRequestForm, PublicAvailabilityCalendar } from "@/components/booking/booking-request-form";
 import { ResponseTimeBadge } from "@/components/messaging/response-time-badge";
 import { cfImageUrl } from "@/lib/cf-image-url";
 import { formatEuro } from "@/lib/money";
@@ -46,6 +47,7 @@ export default async function ListingPage({
 
   const t = await getTranslations("Listing");
   const tMsg = await getTranslations("Messages");
+  const tBooking = await getTranslations("Booking.request");
   const categoryName = locale === "bg" ? listing.categoryNameBg : listing.categoryNameEn;
   const location = listing.wholeCountry ? t("wholeCountry") : listing.cityName ?? "";
 
@@ -125,6 +127,16 @@ export default async function ListingPage({
             {listing.packages.map((p) => (
               <PackageCard key={p.id} pkg={p} />
             ))}
+          </div>
+        </section>
+      )}
+
+      {listing.serviceTypes.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 font-serif text-2xl">{tBooking("sectionTitle")}</h2>
+          <div className="space-y-4">
+            <PublicAvailabilityCalendar listingId={listing.id} />
+            <BookingRequestForm listingId={listing.id} serviceTypes={listing.serviceTypes} />
           </div>
         </section>
       )}

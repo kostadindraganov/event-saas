@@ -1,3 +1,5 @@
+import type { ServiceTypeDTO } from "@/data/booking/booking.dto";
+
 export type PublicListingCardDTO = {
   id: string;
   slug: string;
@@ -37,6 +39,7 @@ export type PublicListingDetailDTO = PublicListingCardDTO & {
     valuesEn: string[];
   }[];
   vendorAvgResponseMinutes: number | null; // user.avgResponseMinutes на listing.ownerId; бадж при ≤1440
+  serviceTypes: ServiceTypeDTO[]; // само isActive=true, за BookingRequestForm
 };
 
 export type PublicListingFilterInput = {

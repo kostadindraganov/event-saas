@@ -5,6 +5,7 @@ import {
   attributeDefinition, category, city, listing, listingAttribute,
   listingImage, listingServiceRegion, listingVideo, promotion, region, servicePackage, user,
 } from "@/db/schema";
+import { CalendarDAL } from "@/data/booking/calendar.dal";
 import type {
   PublicListingCardDTO, PublicListingDetailDTO, PublicListingFilterInput,
   PublicListingPage, PublicPackageDTO,
@@ -107,7 +108,7 @@ export class PublicListingDAL {
     if (!row) return null;
 
     const id = row.id;
-    const [regions, images, videos, packages, attrs] = await Promise.all([
+    const [regions, images, videos, packages, attrs, serviceTypes] = await Promise.all([
       db.select({ name: region.name })
         .from(listingServiceRegion)
         .innerJoin(region, eq(listingServiceRegion.regionId, region.id))
@@ -138,6 +139,7 @@ export class PublicListingDAL {
         .innerJoin(attributeDefinition, eq(listingAttribute.attributeDefinitionId, attributeDefinition.id))
         .where(and(eq(listingAttribute.listingId, id), eq(attributeDefinition.showAsChip, true)))
         .orderBy(asc(attributeDefinition.sortOrder)),
+      CalendarDAL.public().listActiveServiceTypes(id),
     ]);
 
     const packageDTOs: PublicPackageDTO[] = packages.map((p) => ({
@@ -159,6 +161,7 @@ export class PublicListingDAL {
       packages: packageDTOs,
       chips,
       vendorAvgResponseMinutes: row.vendorAvgResponseMinutes,
+      serviceTypes,
     };
   }
 
