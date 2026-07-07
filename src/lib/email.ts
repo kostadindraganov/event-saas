@@ -87,3 +87,55 @@ export function listingRejectedEmail(input: { listingTitle: string; reason: stri
 </div>`;
   return { subject, html };
 }
+
+export function bookingRequestedEmail(input: {
+  vendorName: string; listingTitle: string; eventDate: string; calendarUrl: string;
+}): { subject: string; html: string } {
+  const subject = `Нова заявка за резервация — „${input.listingTitle}"`;
+  const html = `<div style="font-family:sans-serif;line-height:1.5;color:#111">
+  <p>Здравейте, ${escapeHtml(input.vendorName)},</p>
+  <p>Получихте нова заявка за резервация за обявата <strong>${escapeHtml(input.listingTitle)}</strong> на дата <strong>${escapeHtml(input.eventDate)}</strong>.</p>
+  <p><a href="${input.calendarUrl}">Виж заявката в календара</a></p>
+</div>`;
+  return { subject, html };
+}
+
+export function bookingConfirmedEmail(input: {
+  customerName: string; listingTitle: string; eventDate: string; bookingUrl: string;
+}): { subject: string; html: string } {
+  const subject = `Резервацията Ви за „${input.listingTitle}" е потвърдена`;
+  const html = `<div style="font-family:sans-serif;line-height:1.5;color:#111">
+  <p>Здравейте, ${escapeHtml(input.customerName)},</p>
+  <p>Резервацията Ви за <strong>${escapeHtml(input.listingTitle)}</strong> на дата <strong>${escapeHtml(input.eventDate)}</strong> бе потвърдена.</p>
+  <p><a href="${input.bookingUrl}">Виж резервацията</a></p>
+</div>`;
+  return { subject, html };
+}
+
+export function bookingDeclinedEmail(input: {
+  customerName: string; listingTitle: string; eventDate: string; reason: string; listingUrl: string;
+}): { subject: string; html: string } {
+  const subject = `Резервацията Ви за „${input.listingTitle}" бе отказана`;
+  const html = `<div style="font-family:sans-serif;line-height:1.5;color:#111">
+  <p>Здравейте, ${escapeHtml(input.customerName)},</p>
+  <p>Резервацията Ви за <strong>${escapeHtml(input.listingTitle)}</strong> на дата <strong>${escapeHtml(input.eventDate)}</strong> бе отказана по следната причина:</p>
+  <blockquote style="border-left:3px solid #ddd;margin:0;padding:0 0 0 12px;color:#333">${escapeHtml(input.reason)}</blockquote>
+  <p><a href="${input.listingUrl}">Виж обявата</a></p>
+</div>`;
+  return { subject, html };
+}
+
+export function bookingCancelledEmail(input: {
+  recipientName: string; listingTitle: string; eventDate: string; reason: string;
+  cancelledBy: "customer" | "vendor"; bookingUrl: string;
+}): { subject: string; html: string } {
+  const subject = `Резервацията за „${input.listingTitle}" бе отменена`;
+  const byLabel = input.cancelledBy === "customer" ? "клиента" : "доставчика";
+  const html = `<div style="font-family:sans-serif;line-height:1.5;color:#111">
+  <p>Здравейте, ${escapeHtml(input.recipientName)},</p>
+  <p>Резервацията за <strong>${escapeHtml(input.listingTitle)}</strong> на дата <strong>${escapeHtml(input.eventDate)}</strong> бе отменена от ${byLabel} по следната причина:</p>
+  <blockquote style="border-left:3px solid #ddd;margin:0;padding:0 0 0 12px;color:#333">${escapeHtml(input.reason)}</blockquote>
+  <p><a href="${input.bookingUrl}">Виж детайли</a></p>
+</div>`;
+  return { subject, html };
+}

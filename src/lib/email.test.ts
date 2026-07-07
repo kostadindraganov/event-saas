@@ -1,5 +1,8 @@
 import { expect, test, vi } from "vitest";
-import { listingApprovedEmail, listingRejectedEmail, listingsHiddenEmail, newMessageEmail, sendEmail, subscriptionPastDueEmail } from "./email";
+import {
+  bookingCancelledEmail, bookingConfirmedEmail, bookingDeclinedEmail, bookingRequestedEmail,
+  listingApprovedEmail, listingRejectedEmail, listingsHiddenEmail, newMessageEmail, sendEmail, subscriptionPastDueEmail,
+} from "./email";
 
 test("newMessageEmail: subject + html съдържат обява/тяло/получател/URL", () => {
   const { subject, html } = newMessageEmail({
@@ -66,4 +69,46 @@ test("listingRejectedEmail: escape-ва HTML в reason и съдържа editUrl
   expect(html).toContain("&lt;script&gt;");
   expect(html).toContain("липсват снимки");
   expect(html).toContain("https://example.com/profil/dostavchik/obiavi/abc");
+});
+
+test("bookingRequestedEmail: subject + html съдържат обява/дата/линк", () => {
+  const { subject, html } = bookingRequestedEmail({
+    vendorName: "Иван", listingTitle: "Фото Студио", eventDate: "2026-08-10",
+    calendarUrl: "https://example.com/profil/dostavchik/kalendar",
+  });
+  expect(subject).toContain("Фото Студио");
+  expect(html).toContain("Иван");
+  expect(html).toContain("2026-08-10");
+  expect(html).toContain("https://example.com/profil/dostavchik/kalendar");
+});
+
+test("bookingConfirmedEmail: subject + html съдържат обява/дата/линк", () => {
+  const { subject, html } = bookingConfirmedEmail({
+    customerName: "Мария", listingTitle: "Фото Студио", eventDate: "2026-08-10",
+    bookingUrl: "https://example.com/profil/rezervacii/abc",
+  });
+  expect(subject).toContain("потвърдена");
+  expect(html).toContain("Мария");
+  expect(html).toContain("https://example.com/profil/rezervacii/abc");
+});
+
+test("bookingDeclinedEmail: escape-ва HTML в reason", () => {
+  const { subject, html } = bookingDeclinedEmail({
+    customerName: "Мария", listingTitle: "Фото Студио", eventDate: "2026-08-10",
+    reason: "<script>x</script> зает съм", listingUrl: "https://example.com/obiava/foto-studio",
+  });
+  expect(subject).toContain("отказана");
+  expect(html).not.toContain("<script>");
+  expect(html).toContain("&lt;script&gt;");
+  expect(html).toContain("зает съм");
+});
+
+test("bookingCancelledEmail: escape-ва reason и показва коя страна отменя", () => {
+  const { subject, html } = bookingCancelledEmail({
+    recipientName: "Иван", listingTitle: "Фото Студио", eventDate: "2026-08-10",
+    reason: "<b>болест</b>", cancelledBy: "customer", bookingUrl: "https://example.com/profil/dostavchik/kalendar",
+  });
+  expect(subject).toContain("отменена");
+  expect(html).not.toContain("<b>болест</b>");
+  expect(html).toContain("клиента");
 });
