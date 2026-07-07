@@ -192,7 +192,8 @@
     "pageTitle": "Абонамент",
     "nav": {
       "listings": "Обяви",
-      "subscription": "Абонамент"
+      "subscription": "Абонамент",
+      "promotion": "Промотиране"
     },
     "plans": {
       "standard": {
@@ -238,6 +239,24 @@
       "noSubscription": "Трябва активен абонамент, за да публикуваш обява.",
       "limitReached": "Достигнат е лимитът на плана ти за тази категория.",
       "cta": "Виж абонамента"
+    },
+    "promo": {
+      "carouselTitle": "Промотирани",
+      "carouselPrevSlide": "Предишна обява",
+      "carouselNextSlide": "Следваща обява",
+      "badge": "Промотирана",
+      "pageTitle": "Промотиране",
+      "activeUntil": "Активна до {date}",
+      "inactive": "Няма активна промоция",
+      "activateCta": "Активирай",
+      "activating": "Активиране…",
+      "buyCta": "Купи промоция",
+      "noSubscriptionHint": "Нужен е активен абонамент, за да промотираш обяви.",
+      "errorLimitReached": "Достигнат е лимитът на включените промо слотове.",
+      "errorAlreadyPromoted": "Обявата вече е промотирана.",
+      "errorPremiumRequired": "Промотирането с включени слотове изисква Premium план.",
+      "errorGeneric": "Грешка. Опитай пак.",
+      "entryLink": "Промотиране"
     }
   }
 }

@@ -192,7 +192,8 @@
     "pageTitle": "Subscription",
     "nav": {
       "listings": "Listings",
-      "subscription": "Subscription"
+      "subscription": "Subscription",
+      "promotion": "Promotion"
     },
     "plans": {
       "standard": {
@@ -238,6 +239,24 @@
       "noSubscription": "You need an active subscription to publish a listing.",
       "limitReached": "You've reached your plan's limit for this category.",
       "cta": "View subscription"
+    },
+    "promo": {
+      "carouselTitle": "Promoted",
+      "carouselPrevSlide": "Previous listing",
+      "carouselNextSlide": "Next listing",
+      "badge": "Promoted",
+      "pageTitle": "Promotion",
+      "activeUntil": "Active until {date}",
+      "inactive": "No active promotion",
+      "activateCta": "Activate",
+      "activating": "Activating…",
+      "buyCta": "Buy promotion",
+      "noSubscriptionHint": "You need an active subscription to promote listings.",
+      "errorLimitReached": "You've reached your included promotion slot limit.",
+      "errorAlreadyPromoted": "This listing is already promoted.",
+      "errorPremiumRequired": "Promoting with included slots requires a Premium plan.",
+      "errorGeneric": "Error. Try again.",
+      "entryLink": "Promotion"
     }
   }
 }
