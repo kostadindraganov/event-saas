@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { AdminDAL } from "./admin.dal";
-import { testDb } from "@/test/db-helpers";
+import { testDb, getTestCategoryId, getTestCityId, createTestUser } from "@/test/db-helpers";
 import * as schema from "@/db/schema";
 
 // Track на създаденото taxonomy → cleanup в FK-безопасен ред след всеки тест.
@@ -57,4 +57,84 @@ test("Задача 9: дубликат slug → CONFLICT SLUG_TAKEN", async () =
   created.categoryIds.push(a.id);
   await expect(AdminDAL.createCategory({ slug, nameBg: "Б", nameEn: "B", sortOrder: 0 }))
     .rejects.toMatchObject({ code: "CONFLICT", message: "SLUG_TAKEN" });
+});
+
+async function makeListingWithAttr(defId: string, value: unknown) {
+  const u = await createTestUser();
+  created.userIds.push(u.id);
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const [l] = await testDb.insert(schema.listing)
+    .values({ ownerId: u.id, categoryId, cityId, slug: `t-${randomUUID().slice(0, 8)}`, title: "Т" })
+    .returning({ id: schema.listing.id });
+  created.listingIds.push(l!.id);
+  await testDb.insert(schema.listingAttribute)
+    .values({ listingId: l!.id, attributeDefinitionId: defId, value });
+  return l!.id;
+}
+
+test("Задача 10: attrDef create → update (add option OK на in-use) → delete guard", async () => {
+  const categoryId = await getTestCategoryId();
+  const { id } = await AdminDAL.createAttributeDefinition({
+    categoryId, key: `k_${randomUUID().slice(0, 8)}`, labelBg: "Стил", labelEn: "Style",
+    type: "single",
+    options: [{ value: "classic", labelBg: "Класически", labelEn: "Classic" }],
+    showAsFilter: true, showAsChip: false, sortOrder: 50,
+  });
+  created.attrDefIds.push(id);
+
+  // не-in-use: свободна промяна на type
+  await AdminDAL.updateAttributeDefinition({
+    id, categoryId, key: `k_${randomUUID().slice(0, 8)}`, labelBg: "Стил", labelEn: "Style",
+    type: "number", options: null, showAsFilter: false, showAsChip: true, sortOrder: 50,
+  });
+  let defs = await AdminDAL.listByCategoryAdmin(categoryId);
+  expect(defs.find((d) => d.id === id)?.type).toBe("number");
+
+  // върни на single с 1 option, после го направи in-use
+  await AdminDAL.updateAttributeDefinition({
+    id, categoryId, key: `k_${randomUUID().slice(0, 8)}`, labelBg: "Стил", labelEn: "Style",
+    type: "single", options: [{ value: "classic", labelBg: "Кл", labelEn: "Cl" }],
+    showAsFilter: false, showAsChip: false, sortOrder: 50,
+  });
+  await makeListingWithAttr(id, "classic");
+
+  // ДОБАВЯНЕ на option на in-use дефиниция е ОК (не чупи записани стойности)
+  await AdminDAL.updateAttributeDefinition({
+    id, categoryId, key: `k_${randomUUID().slice(0, 8)}`, labelBg: "Стил", labelEn: "Style",
+    type: "single",
+    options: [
+      { value: "classic", labelBg: "Кл", labelEn: "Cl" },
+      { value: "modern", labelBg: "Мод", labelEn: "Modern" },
+    ],
+    showAsFilter: false, showAsChip: false, sortOrder: 50,
+  });
+
+  // МАХАНЕ на option на in-use → ATTRIBUTE_IN_USE
+  await expect(AdminDAL.updateAttributeDefinition({
+    id, categoryId, key: `k_${randomUUID().slice(0, 8)}`, labelBg: "Стил", labelEn: "Style",
+    type: "single", options: [{ value: "modern", labelBg: "Мод", labelEn: "Modern" }],
+    showAsFilter: false, showAsChip: false, sortOrder: 50,
+  })).rejects.toMatchObject({ code: "CONFLICT", message: "ATTRIBUTE_IN_USE" });
+
+  // СМЯНА на type на in-use → ATTRIBUTE_IN_USE
+  await expect(AdminDAL.updateAttributeDefinition({
+    id, categoryId, key: `k_${randomUUID().slice(0, 8)}`, labelBg: "Стил", labelEn: "Style",
+    type: "number", options: null, showAsFilter: false, showAsChip: false, sortOrder: 50,
+  })).rejects.toMatchObject({ code: "CONFLICT", message: "ATTRIBUTE_IN_USE" });
+
+  // DELETE на in-use → ATTRIBUTE_IN_USE
+  await expect(AdminDAL.deleteAttributeDefinition(id))
+    .rejects.toMatchObject({ code: "CONFLICT", message: "ATTRIBUTE_IN_USE" });
+});
+
+test("Задача 10: delete на неизползвана дефиниция минава", async () => {
+  const categoryId = await getTestCategoryId();
+  const { id } = await AdminDAL.createAttributeDefinition({
+    categoryId, key: `k_${randomUUID().slice(0, 8)}`, labelBg: "Л", labelEn: "L",
+    type: "boolean", options: null, showAsFilter: false, showAsChip: false, sortOrder: 0,
+  });
+  await AdminDAL.deleteAttributeDefinition(id); // без запис в listingAttribute → OK
+  const defs = await AdminDAL.listByCategoryAdmin(categoryId);
+  expect(defs.some((d) => d.id === id)).toBe(false);
 });

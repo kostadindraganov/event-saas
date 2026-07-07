@@ -73,3 +73,35 @@ export const CategoryUpdateSchema = z
   .extend({ id: z.uuid(), isActive: z.boolean().optional() });
 export type CategoryCreateInput = z.infer<typeof CategoryCreateSchema>;
 export type CategoryUpdateInput = z.infer<typeof CategoryUpdateSchema>;
+
+export const AttributeOptionInputSchema = z.object({
+  value: z.string().min(1).max(60),
+  labelBg: z.string().min(1).max(100),
+  labelEn: z.string().min(1).max(100),
+});
+
+const attributeDefFields = {
+  categoryId: z.uuid(),
+  key: z.string().min(1).max(60).regex(/^[a-z0-9_]+$/, "KEY_FORMAT"),
+  labelBg: z.string().min(1).max(100),
+  labelEn: z.string().min(1).max(100),
+  type: z.enum(["single", "multi", "number", "boolean"]),
+  options: z.array(AttributeOptionInputSchema).nullable(),
+  showAsFilter: z.boolean(),
+  showAsChip: z.boolean(),
+  sortOrder: z.number().int().min(0),
+};
+
+// single/multi изискват непразни options; number/boolean → options === null
+const optionsMatchType = (d: { type: string; options: unknown[] | null }) =>
+  d.type === "single" || d.type === "multi"
+    ? Array.isArray(d.options) && d.options.length > 0
+    : d.options === null;
+const optionsMsg = { message: "OPTIONS_TYPE_MISMATCH", path: ["options"] };
+
+export const AttributeDefinitionCreateSchema = z.object(attributeDefFields).refine(optionsMatchType, optionsMsg);
+export const AttributeDefinitionUpdateSchema = z
+  .object({ id: z.uuid(), ...attributeDefFields })
+  .refine(optionsMatchType, optionsMsg);
+export type AttributeDefinitionCreateInput = z.infer<typeof AttributeDefinitionCreateSchema>;
+export type AttributeDefinitionUpdateInput = z.infer<typeof AttributeDefinitionUpdateSchema>;

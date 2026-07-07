@@ -2,7 +2,8 @@ import "server-only";
 import { and, asc, count, desc, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { category, city, listing, promotion, session, setting, subscription, user } from "@/db/schema";
+import { attributeDefinition, category, city, listing, listingAttribute, promotion, session, setting, subscription, user } from "@/db/schema";
+import { AttributeDAL } from "@/data/catalog/attribute.dal";
 import { BillingDAL, getBillingSettings, type BillingSettings } from "@/data/billing/billing.dal";
 import { listingApprovedEmail, listingRejectedEmail, sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
@@ -14,6 +15,8 @@ import type {
   CategoryCreateInput,
   CategoryUpdateInput,
   CategoryRowDTO,
+  AttributeDefinitionCreateInput,
+  AttributeDefinitionUpdateInput,
 } from "./admin.dto";
 
 // drizzle-orm/neon-serverless обвива pg грешката — реалният код е в err.cause.code
@@ -242,5 +245,73 @@ export class AdminDAL {
       })
       .from(category)
       .orderBy(asc(category.sortOrder));
+  }
+
+  static async createAttributeDefinition(input: AttributeDefinitionCreateInput): Promise<{ id: string }> {
+    try {
+      const [row] = await db
+        .insert(attributeDefinition)
+        .values({
+          categoryId: input.categoryId, key: input.key, labelBg: input.labelBg, labelEn: input.labelEn,
+          type: input.type, options: input.options, showAsFilter: input.showAsFilter,
+          showAsChip: input.showAsChip, sortOrder: input.sortOrder,
+        })
+        .returning({ id: attributeDefinition.id });
+      return row!;
+    } catch (err) {
+      if (pgCode(err) === "23505") throw new TRPCError({ code: "CONFLICT", message: "KEY_TAKEN" });
+      throw err;
+    }
+  }
+
+  static async updateAttributeDefinition(input: AttributeDefinitionUpdateInput): Promise<void> {
+    const [current] = await db
+      .select({ type: attributeDefinition.type, options: attributeDefinition.options })
+      .from(attributeDefinition)
+      .where(eq(attributeDefinition.id, input.id));
+    if (!current) throw new TRPCError({ code: "NOT_FOUND" });
+
+    const typeChanged = current.type !== input.type;
+    const currentValues = ((current.options as { value: string }[] | null) ?? []).map((o) => o.value);
+    const nextValues = (input.options ?? []).map((o) => o.value);
+    const optionRemoved = currentValues.some((v) => !nextValues.includes(v));
+
+    // само разрушаващи промени (type-change / махнат option) блокират in-use дефиниция;
+    // добавяне на option или пре-етикетиране е безопасно
+    if (typeChanged || optionRemoved) {
+      const [c] = await db
+        .select({ n: count() })
+        .from(listingAttribute)
+        .where(eq(listingAttribute.attributeDefinitionId, input.id));
+      if ((c?.n ?? 0) > 0) throw new TRPCError({ code: "CONFLICT", message: "ATTRIBUTE_IN_USE" });
+    }
+
+    try {
+      await db
+        .update(attributeDefinition)
+        .set({
+          categoryId: input.categoryId, key: input.key, labelBg: input.labelBg, labelEn: input.labelEn,
+          type: input.type, options: input.options, showAsFilter: input.showAsFilter,
+          showAsChip: input.showAsChip, sortOrder: input.sortOrder,
+        })
+        .where(eq(attributeDefinition.id, input.id));
+    } catch (err) {
+      if (pgCode(err) === "23505") throw new TRPCError({ code: "CONFLICT", message: "KEY_TAKEN" });
+      throw err;
+    }
+  }
+
+  static async deleteAttributeDefinition(id: string): Promise<void> {
+    const [c] = await db
+      .select({ n: count() })
+      .from(listingAttribute)
+      .where(eq(listingAttribute.attributeDefinitionId, id));
+    if ((c?.n ?? 0) > 0) throw new TRPCError({ code: "CONFLICT", message: "ATTRIBUTE_IN_USE" });
+    await db.delete(attributeDefinition).where(eq(attributeDefinition.id, id));
+  }
+
+  // reuse на read-DAL: същият shape (AttributeDefinitionDTO[]), сортиран по sortOrder, вкл. options
+  static listByCategoryAdmin(categoryId: string) {
+    return AttributeDAL.public().definitionsByCategory(categoryId);
   }
 }
