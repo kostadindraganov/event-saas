@@ -1,15 +1,21 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { availabilityRule, blockedDate, booking, bookingServiceType, listing, user } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
-import { addMinutes, generateDaySlots, isPastDate, weekdayOf } from "./slots";
+import { addMinutes, generateDaySlots, isPastDate, overlaps, todaySofia, weekdayOf } from "./slots";
+import { canCancelBooking, canModerateBooking } from "./booking.policy";
 import {
   bookingCancelledEmail, bookingConfirmedEmail, bookingDeclinedEmail, bookingRequestedEmail, sendEmail,
 } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
 import type { BookingDTO, BookingRequestInput } from "./booking.dto";
+
+// drizzle-orm обвива pg грешката — реалният код е в err.cause.code (както calendar.dal.ts).
+function pgCode(err: unknown): string | undefined {
+  return (err as { cause?: { code?: string } })?.cause?.code;
+}
 
 // ponytail: локален mapper, умишлено дублиран и в calendar.dal.ts (T7, listIncoming) — виж флага в
 // началото на секцията (избягва cross-file forward-dependency между T7→T8).
@@ -170,5 +176,117 @@ export class BookingDAL {
       .where(eq(booking.customerId, this.user.id))
       .orderBy(desc(booking.createdAt));
     return rows.map(toBookingDTO);
+  }
+
+  // D3: ЕДНА транзакция — advisory lock → re-select(guard) → freeness guard(D2) → CAS → auto_decline(D2).
+  async confirm(id: string): Promise<{ slug: string }> {
+    const result = await db.transaction(async (tx) => {
+      // фаза 1 (без lock): само за да знаем КАКВО да заключим — listingId/eventDate са immutable след insert
+      const [pre] = await tx.select({ listingId: booking.listingId, eventDate: booking.eventDate })
+        .from(booking).where(eq(booking.id, id));
+      if (!pre) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // advisory xact lock по (listingId,eventDate) — сериализира конкурентни confirm-и за същата обява+дата
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${pre.listingId + pre.eventDate}, 0))`);
+
+      // фаза 2 (под lock-а): авторитетно re-select
+      const [row] = await tx.select({
+        id: booking.id, listingId: booking.listingId, status: booking.status, isFullDay: booking.isFullDay,
+        eventDate: booking.eventDate, startTime: booking.startTime, endTime: booking.endTime,
+        customerId: booking.customerId, listingOwnerId: listing.ownerId, listingSlug: listing.slug, listingTitle: listing.title,
+      }).from(booking).innerJoin(listing, eq(booking.listingId, listing.id)).where(eq(booking.id, id));
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!canModerateBooking(this.user, row.listingOwnerId)) throw new TRPCError({ code: "FORBIDDEN" });
+      if (row.status !== "pending") throw new TRPCError({ code: "CONFLICT", message: "NOT_PENDING" });
+
+      // freeness guard (D2)
+      const confirmedRows = await tx.select({ isFullDay: booking.isFullDay, startTime: booking.startTime, endTime: booking.endTime })
+        .from(booking)
+        .where(and(eq(booking.listingId, row.listingId), eq(booking.eventDate, row.eventDate), eq(booking.status, "confirmed")));
+      if (row.isFullDay) {
+        if (confirmedRows.length > 0) throw new TRPCError({ code: "CONFLICT", message: "DATE_TAKEN" });
+      } else {
+        if (confirmedRows.some((c) => c.isFullDay)) throw new TRPCError({ code: "CONFLICT", message: "DATE_TAKEN" });
+        const overlap = confirmedRows.some((c) => !c.isFullDay && c.startTime && c.endTime && overlaps(row.startTime!, row.endTime!, c.startTime, c.endTime));
+        if (overlap) throw new TRPCError({ code: "CONFLICT", message: "SLOT_TAKEN" });
+      }
+
+      // CAS → confirmed (partial unique index е DB backstop за race-а, catch 23505 defensively)
+      let updated: { id: string } | undefined;
+      try {
+        [updated] = await tx.update(booking).set({ status: "confirmed", confirmedAt: new Date() })
+          .where(and(eq(booking.id, id), eq(booking.status, "pending"))).returning({ id: booking.id });
+      } catch (err) {
+        if (pgCode(err) === "23505") throw new TRPCError({ code: "CONFLICT", message: "DATE_TAKEN" });
+        throw err;
+      }
+      if (!updated) throw new TRPCError({ code: "CONFLICT", message: "NOT_PENDING" });
+
+      // auto_decline на конкурентните pending по D2
+      const pendingRows = await tx.select({ id: booking.id, isFullDay: booking.isFullDay, startTime: booking.startTime, endTime: booking.endTime })
+        .from(booking)
+        .where(and(eq(booking.listingId, row.listingId), eq(booking.eventDate, row.eventDate), eq(booking.status, "pending"), ne(booking.id, id)));
+      const toDecline = row.isFullDay
+        ? pendingRows.map((p) => p.id)
+        : pendingRows
+            .filter((p) => p.isFullDay || (!!p.startTime && !!p.endTime && overlaps(row.startTime!, row.endTime!, p.startTime, p.endTime)))
+            .map((p) => p.id);
+      if (toDecline.length > 0) {
+        await tx.update(booking).set({ status: "auto_declined" }).where(inArray(booking.id, toDecline));
+      }
+
+      return { slug: row.listingSlug, customerId: row.customerId, listingTitle: row.listingTitle, eventDate: row.eventDate };
+    });
+
+    void notifyBookingConfirmed(result.customerId, result.listingTitle, result.eventDate).catch((e) => console.error("email failed", e));
+    return { slug: result.slug };
+  }
+
+  // moderator guard; единичен CAS (WHERE status='pending') — без tx (аналог на admin.dal.ts reject()).
+  async decline(id: string, reason: string): Promise<{ slug: string }> {
+    const [row] = await db.select({
+      customerId: booking.customerId, listingOwnerId: listing.ownerId, listingSlug: listing.slug,
+      listingTitle: listing.title, eventDate: booking.eventDate,
+    }).from(booking).innerJoin(listing, eq(booking.listingId, listing.id)).where(eq(booking.id, id));
+    if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+    if (!canModerateBooking(this.user, row.listingOwnerId)) throw new TRPCError({ code: "FORBIDDEN" });
+
+    const [updated] = await db.update(booking).set({ status: "declined", declineReason: reason })
+      .where(and(eq(booking.id, id), eq(booking.status, "pending"))).returning({ id: booking.id });
+    if (!updated) throw new TRPCError({ code: "CONFLICT", message: "NOT_PENDING" });
+
+    void notifyBookingDeclined(row.customerId, row.listingTitle, row.eventDate, reason, row.listingSlug).catch((e) => console.error("email failed", e));
+    return { slug: row.listingSlug };
+  }
+
+  // canCancelBooking решава КОЙ може (customer/vendor/null); DAL пази датата (D8: eventDate>=today) и CAS-а.
+  async cancel(id: string, reason: string): Promise<{ slug: string }> {
+    const [row] = await db.select({
+      status: booking.status, customerId: booking.customerId, eventDate: booking.eventDate,
+      listingOwnerId: listing.ownerId, listingSlug: listing.slug, listingTitle: listing.title,
+    }).from(booking).innerJoin(listing, eq(booking.listingId, listing.id)).where(eq(booking.id, id));
+    if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+
+    const side = canCancelBooking(this.user, { customerId: row.customerId, listingOwnerId: row.listingOwnerId, status: row.status });
+    if (!side) throw new TRPCError({ code: "FORBIDDEN" });
+    if (isPastDate(row.eventDate)) throw new TRPCError({ code: "CONFLICT", message: "TOO_LATE" });
+
+    const newStatus = side === "customer" ? "cancelled_by_customer" : "cancelled_by_vendor";
+    const [updated] = await db.update(booking).set({ status: newStatus, cancelReason: reason })
+      .where(and(eq(booking.id, id), inArray(booking.status, ["pending", "confirmed"]))).returning({ id: booking.id });
+    if (!updated) throw new TRPCError({ code: "CONFLICT", message: "NOT_CANCELLABLE" });
+
+    void notifyBookingCancelled(row, side, reason).catch((e) => console.error("email failed", e));
+    return { slug: row.listingSlug };
+  }
+
+  // D4 cron: confirmed+минала дата → completed; pending+минала дата → auto_declined. Без notify (не е в D4).
+  static async autoComplete(): Promise<{ completed: number; autoDeclined: number }> {
+    const today = todaySofia();
+    const completedRows = await db.update(booking).set({ status: "completed" })
+      .where(and(eq(booking.status, "confirmed"), lt(booking.eventDate, today))).returning({ id: booking.id });
+    const autoDeclinedRows = await db.update(booking).set({ status: "auto_declined" })
+      .where(and(eq(booking.status, "pending"), lt(booking.eventDate, today))).returning({ id: booking.id });
+    return { completed: completedRows.length, autoDeclined: autoDeclinedRows.length };
   }
 }
