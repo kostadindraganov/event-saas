@@ -15,6 +15,7 @@ export async function ListingCard({
   locale: string;
 }) {
   const t = await getTranslations("Catalog");
+  const tb = await getTranslations("Billing.promo");
   const coverUrl = listing.coverCfImageId ? cfImageUrl(listing.coverCfImageId) : null;
   const categoryName = locale === "bg" ? listing.categoryNameBg : listing.categoryNameEn;
   const location = listing.wholeCountry ? t("wholeCountry") : listing.cityName ?? "";
@@ -42,6 +43,11 @@ export async function ListingCard({
             <Star className="size-3.5 fill-accent-gold text-accent-gold" />
             {listing.ratingAvg.toFixed(1)}
             <span className="text-muted-foreground">({listing.reviewCount})</span>
+          </span>
+        )}
+        {listing.promoted && (
+          <span className="absolute bottom-2 left-2 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+            {tb("badge")}
           </span>
         )}
       </div>
