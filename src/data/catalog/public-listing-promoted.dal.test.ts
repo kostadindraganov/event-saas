@@ -52,16 +52,19 @@ beforeAll(async () => {
 
   // publishedAt нараства по ред на създаване — bezPromo е НАЙ-новата (за да провери
   // reorder-а: без promoted-first щеше да е първа под "new" сорта)
-  ids.activna1 = await mk(ownerA, "Обява Активна1", 20000);
+  // ponytail: всички цени > 90000 — извън price филтрите (10000–90000) на
+  // public-listing-list.dal.test.ts; споделена dev Neon + паралелни vitest workers →
+  // нашите fotografi seeds не бива да влизат в неговите филтрирани страници
+  ids.activna1 = await mk(ownerA, "Обява Активна1", 92000);
   await new Promise((r) => setTimeout(r, 10));
-  ids.activna2 = await mk(ownerA, "Обява Активна2", 30000);
+  ids.activna2 = await mk(ownerA, "Обява Активна2", 93000);
   await new Promise((r) => setTimeout(r, 10));
-  ids.izteklaPromo = await mk(ownerB, "Обява Изтекла промо", 10000);
+  ids.izteklaPromo = await mk(ownerB, "Обява Изтекла промо", 91000);
   await new Promise((r) => setTimeout(r, 10));
-  ids.badeshtaPromo = await mk(ownerB, "Обява Бъдеща промо", 10000);
+  ids.badeshtaPromo = await mk(ownerB, "Обява Бъдеща промо", 91000);
   await new Promise((r) => setTimeout(r, 10));
-  ids.bezPromo = await mk(ownerC, "Обява Без промо", 25000);
-  ids.skritaPromo = await mk(ownerC, "Обява Скрита промо", 10000);
+  ids.bezPromo = await mk(ownerC, "Обява Без промо", 92500);
+  ids.skritaPromo = await mk(ownerC, "Обява Скрита промо", 91000);
   await ListingDAL.for(ownerC).hide(ids.skritaPromo);
 
   const now = Date.now();
@@ -104,7 +107,7 @@ test("list() default сорт (new): promoted-first въпреки по-нова
 test("list() explicit сорт (priceAsc) НЕ се пренарежда от promoted", async () => {
   const page = await ListingDAL.public().list(base({ sort: "priceAsc" }));
   const seededOrder = page.items.filter((i) => seededIds.has(i.id)).map((i) => i.priceFromCents);
-  // чист ред по цена, независимо кои са promoted (10000,10000,10000,20000,25000,30000 — стабилен по цена)
+  // чист ред по цена, независимо кои са promoted (91000,91000,92000,92500,93000 — стабилен по цена)
   expect(seededOrder).toEqual([...seededOrder].sort((a, b) => (a ?? 0) - (b ?? 0)));
 });
 
