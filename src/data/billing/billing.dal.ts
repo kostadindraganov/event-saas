@@ -1,4 +1,5 @@
 import "server-only";
+import { revalidateTag } from "next/cache";
 import { and, count, eq, gt, inArray, lt, lte, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
@@ -16,6 +17,18 @@ export type PolarSubscriptionEventPayload = {
     status: string;
     currentPeriodEnd: string | Date | null;
     productId: string;
+  };
+};
+
+// Тесен локален тип за Polar onOrderPaid — payload е camelCase (SDK трансформация, огледано
+// от PolarSubscriptionEventPayload по-долу, не суровия snake_case REST JSON).
+export type PolarOrderPaidPayload = {
+  customer: { externalId: string | null } | null;
+  data: {
+    id: string;
+    productId: string;
+    paid: boolean;
+    metadata: Record<string, unknown> | null;
   };
 };
 
@@ -360,6 +373,55 @@ export class BillingDAL {
     if (result.hiddenCount > 0) {
       void notifyListingsHiddenEmail(userId, result.hiddenCount).catch((e) => console.error("email failed", e));
     }
+  }
+
+  // Идемпотентна проекция на Polar onOrderPaid webhook → promotion ред (insert по polarOrderId).
+  // Викана от auth.ts (handleOrderPaidEvent); гълта всичко бизнес-логично (log+skip), никога не хвърля
+  // към webhook route-а (Polar retry loop правилото от M2.1).
+  static async projectOrderEvent(payload: PolarOrderPaidPayload): Promise<void> {
+    if (payload.data.productId !== process.env.POLAR_PRODUCT_PROMOTION) {
+      return; // друг продукт (subscription one-time сценарий не съществува тук) — ignore
+    }
+    const userId = payload.customer?.externalId ?? null;
+    const referenceId = payload.data.metadata?.referenceId;
+    const listingId = typeof referenceId === "string" ? referenceId : null;
+    if (!userId || !listingId) {
+      console.error("Polar order webhook: липсва customer.externalId/metadata.referenceId", payload.data.id);
+      return;
+    }
+
+    const { promo } = await getBillingSettings();
+
+    const inserted = await db.transaction(async (tx) => {
+      const [byOrder] = await tx
+        .select({ id: promotion.id })
+        .from(promotion)
+        .where(eq(promotion.polarOrderId, payload.data.id));
+      if (byOrder) return false; // идемпотентност: order вече проектиран
+
+      const [row] = await tx.select({ ownerId: listing.ownerId }).from(listing).where(eq(listing.id, listingId));
+      if (!row || row.ownerId !== userId) {
+        console.error("Polar order webhook: непозната/чужда обява за поръчка", payload.data.id, listingId);
+        return false;
+      }
+
+      if (await BillingDAL.activePromotionForListing(tx, listingId)) {
+        console.error("Polar order webhook: обявата вече е промотирана", listingId);
+        return false;
+      }
+
+      const now = new Date();
+      await tx.insert(promotion).values({
+        listingId,
+        source: "purchased",
+        polarOrderId: payload.data.id,
+        startsAt: now,
+        endsAt: new Date(now.getTime() + promo.durationDays * 24 * 60 * 60 * 1000),
+      });
+      return true;
+    });
+
+    if (inserted) revalidateTag("listings", { expire: 0 });
   }
 
   // Cron: изтекъл гратис (past_due + graceUntil < now) → скрива published обявите на потребителя.

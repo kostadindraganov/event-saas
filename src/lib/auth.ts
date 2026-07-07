@@ -4,7 +4,7 @@ import { nextCookies } from "better-auth/next-js";
 import { polar, checkout, portal, webhooks } from "@polar-sh/better-auth";
 import { Polar } from "@polar-sh/sdk";
 import { db } from "@/db";
-import { BillingDAL, type PolarSubscriptionEventPayload } from "@/data/billing/billing.dal";
+import { BillingDAL, type PolarSubscriptionEventPayload, type PolarOrderPaidPayload } from "@/data/billing/billing.dal";
 
 // Polar е at-least-once; никога не хвърляй тук — webhook route-ът трябва да отговори 200,
 // иначе Polar ще retry-ва безкрайно (upsert-ът е идемпотентен, дублирана доставка е ОК).
@@ -13,6 +13,15 @@ async function handleSubscriptionEvent(raw: unknown): Promise<void> {
     await BillingDAL.projectSubscriptionEvent(raw as PolarSubscriptionEventPayload);
   } catch (e) {
     console.error("Polar webhook проекция гръмна", e);
+  }
+}
+
+// onOrderPaid е one-time покупка (промоция) — аналогичен wrapper, никога не хвърля (Polar at-least-once).
+async function handleOrderPaidEvent(raw: unknown): Promise<void> {
+  try {
+    await BillingDAL.projectOrderEvent(raw as PolarOrderPaidPayload);
+  } catch (e) {
+    console.error("Polar order webhook проекция гръмна", e);
   }
 }
 
@@ -63,6 +72,7 @@ export const auth = betterAuth({
                   { productId: process.env.POLAR_PRODUCT_STANDARD_YEARLY!, slug: "standard-yearly" },
                   { productId: process.env.POLAR_PRODUCT_PREMIUM_MONTHLY!, slug: "premium-monthly" },
                   { productId: process.env.POLAR_PRODUCT_PREMIUM_YEARLY!, slug: "premium-yearly" },
+                  { productId: process.env.POLAR_PRODUCT_PROMOTION!, slug: "promotion" },
                 ],
                 successUrl: "/profil/dostavchik/abonament?checkout_id={CHECKOUT_ID}",
                 authenticatedUsersOnly: true,
@@ -78,6 +88,7 @@ export const auth = betterAuth({
                       onSubscriptionUpdated: (payload) => handleSubscriptionEvent(payload),
                       onSubscriptionCanceled: (payload) => handleSubscriptionEvent(payload),
                       onSubscriptionRevoked: (payload) => handleSubscriptionEvent(payload),
+                      onOrderPaid: (payload) => handleOrderPaidEvent(payload),
                     }),
                   ]
                 : []),

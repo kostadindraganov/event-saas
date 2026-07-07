@@ -7,12 +7,17 @@ import { ListingDAL } from "@/data/catalog/listing.dal";
 import type { SessionUser } from "@/data/users/require-user";
 import { BillingDAL, getBillingSettings } from "./billing.dal";
 
+// ponytail: revalidateTag извън заявка/render хвърля "static generation store missing";
+// projectOrderEvent го вика след insert — стъбваме го (същата конвенция като catalog.test.ts).
+vi.mock("next/cache", () => ({ revalidateTag: () => {} }));
+
 // POLAR_PRODUCT_* липсват в .env — стъбваме ги, за да мапва mapPlan(productId) в теста.
 beforeAll(() => {
   vi.stubEnv("POLAR_PRODUCT_STANDARD_MONTHLY", "prod_standard_monthly");
   vi.stubEnv("POLAR_PRODUCT_STANDARD_YEARLY", "prod_standard_yearly");
   vi.stubEnv("POLAR_PRODUCT_PREMIUM_MONTHLY", "prod_premium_monthly");
   vi.stubEnv("POLAR_PRODUCT_PREMIUM_YEARLY", "prod_premium_yearly");
+  vi.stubEnv("POLAR_PRODUCT_PROMOTION", "prod_promotion");
 });
 afterAll(() => vi.unstubAllEnvs());
 
@@ -293,4 +298,96 @@ test("countActiveIncludedPromotions: брои само активни 'premium_i
   await createTestPromotion(a.id, { source: "premium_included" });
   await createTestPromotion(b.id, { source: "purchased" });
   await expect(testDb.transaction((tx) => BillingDAL.countActiveIncludedPromotions(tx, id))).resolves.toBe(1);
+});
+
+function orderPayload(
+  userId: string,
+  listingId: string | null,
+  opts: { orderId: string; productId?: string },
+) {
+  return {
+    customer: { externalId: userId },
+    data: {
+      id: opts.orderId,
+      productId: opts.productId ?? "prod_promotion",
+      paid: true,
+      metadata: listingId === null ? {} : { referenceId: listingId },
+    },
+  };
+}
+
+test("projectOrderEvent: happy path → insert 'purchased' ред с polarOrderId и endsAt = now+durationDays", async () => {
+  const { user, id } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Поръчка Промо", categoryId: categoryA!, cityId });
+  const before = Date.now();
+
+  await BillingDAL.projectOrderEvent(orderPayload(id, draft.id, { orderId: "order_happy_1" }));
+
+  const rows = await testDb.select().from(schema.promotion).where(eq(schema.promotion.listingId, draft.id));
+  expect(rows.length).toBe(1);
+  expect(rows[0]?.source).toBe("purchased");
+  expect(rows[0]?.polarOrderId).toBe("order_happy_1");
+  const { promo } = await getBillingSettings();
+  const expectedEnds = before + promo.durationDays * 24 * 60 * 60 * 1000;
+  expect(rows[0]!.endsAt.getTime()).toBeGreaterThanOrEqual(expectedEnds - 5000);
+  expect(rows[0]!.endsAt.getTime()).toBeLessThanOrEqual(expectedEnds + 5000);
+});
+
+test("projectOrderEvent: дублиран polarOrderId → повторен webhook не създава втори ред (идемпотентно)", async () => {
+  const { user, id } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Поръчка Дубъл", categoryId: categoryA!, cityId });
+  const p = orderPayload(id, draft.id, { orderId: "order_dup_2" });
+
+  await BillingDAL.projectOrderEvent(p);
+  await BillingDAL.projectOrderEvent(p);
+
+  const rows = await testDb.select().from(schema.promotion).where(eq(schema.promotion.listingId, draft.id));
+  expect(rows.length).toBe(1);
+});
+
+test("projectOrderEvent: metadata.referenceId сочи чужда обява → skip, никакъв ред, не хвърля", async () => {
+  const owner = await newOwner();
+  const other = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const otherListing = await ListingDAL.for(other.user).createDraft({ title: "Чужда Промо Обява", categoryId: categoryA!, cityId });
+
+  await expect(
+    BillingDAL.projectOrderEvent(orderPayload(owner.id, otherListing.id, { orderId: "order_foreign_1" })),
+  ).resolves.toBeUndefined();
+
+  const rows = await testDb.select().from(schema.promotion).where(eq(schema.promotion.listingId, otherListing.id));
+  expect(rows).toEqual([]);
+});
+
+test("projectOrderEvent: непознат productId → ignore, никакъв ред", async () => {
+  const { user, id } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Непознат Продукт", categoryId: categoryA!, cityId });
+
+  await BillingDAL.projectOrderEvent(orderPayload(id, draft.id, { orderId: "order_unknown_product", productId: "prod_other" }));
+
+  const rows = await testDb.select().from(schema.promotion).where(eq(schema.promotion.listingId, draft.id));
+  expect(rows).toEqual([]);
+});
+
+test("projectOrderEvent: вече активна промоция на обявата → skip (guard #2), не хвърля", async () => {
+  const { user, id } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Вече Промотирана", categoryId: categoryA!, cityId });
+  await createTestPromotion(draft.id, { source: "premium_included" });
+
+  await expect(
+    BillingDAL.projectOrderEvent(orderPayload(id, draft.id, { orderId: "order_already_promoted" })),
+  ).resolves.toBeUndefined();
+
+  const rows = await testDb.select().from(schema.promotion).where(eq(schema.promotion.listingId, draft.id));
+  expect(rows.length).toBe(1);
+  expect(rows[0]?.source).toBe("premium_included");
 });
