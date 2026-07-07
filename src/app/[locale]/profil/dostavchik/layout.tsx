@@ -7,11 +7,13 @@ import { cn } from "@/lib/utils";
 // (client-only hook, точно като mobile-bottom-nav.tsx); auth guard-ва родителският profil/layout.tsx.
 export default function DostavchikLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("Billing.nav");
+  const tBooking = useTranslations("Booking.calendarPage");
   const pathname = usePathname();
   const tabs = [
     { href: "/profil/dostavchik/obiavi", label: t("listings") },
     { href: "/profil/dostavchik/abonament", label: t("subscription") },
     { href: "/profil/dostavchik/promotirane", label: t("promotion") },
+    { href: "/profil/dostavchik/kalendar", label: tBooking("navLabel") },
   ] as const;
 
   return (
