@@ -99,8 +99,10 @@ export class ListingDAL {
     const row = await this.ownedRow(id);
     if (!canSubmitListing(this.user, row)) throw new Error("FORBIDDEN");
     const userId = this.user.id;
-    // ponytail: Ф1 публикува директно; pending_approval gate идва с админ панела (Ф2)
-    // транзакция: entitlement guard + CAS UPDATE атомарно (затваря TOCTOU при конкурентен submit)
+    // M2.3: submit → pending_approval (не published); admin approve() (AdminDAL, Задача 5) сеща publishedAt.
+    // assertCanPublish тук е мек fail-fast pre-check за UX (нищо не се консумира при pending) —
+    // авторитетната проверка е в AdminDAL.approve(), единственият преход, който реално консумира лимита.
+    // транзакция: entitlement pre-check + CAS UPDATE атомарно (затваря TOCTOU при конкурентен submit)
     const updated = await db.transaction(async (tx) => {
       const [fresh] = await tx
         .select({ categoryId: listing.categoryId, status: listing.status })
@@ -111,8 +113,7 @@ export class ListingDAL {
       const [updatedRow] = await tx
         .update(listing)
         .set({
-          status: "published",
-          publishedAt: new Date(),
+          status: "pending_approval",
           rejectionReason: null,
           hiddenBySystem: false,
           updatedAt: new Date(),
@@ -170,6 +171,7 @@ export class ListingDAL {
       id: r.id, slug: r.slug, title: r.title, status: r.status,
       categoryId: r.categoryId, cityId: r.cityId,
       priceFromCents: r.priceFromCents, coverImageId: r.coverImageId,
+      rejectionReason: r.rejectionReason,
     }));
   }
 

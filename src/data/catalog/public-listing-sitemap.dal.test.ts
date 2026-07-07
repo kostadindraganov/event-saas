@@ -23,7 +23,9 @@ beforeAll(async () => {
   const l = await dal.createDraft({ title: "Sitemap Публична Обява", categoryId, cityId });
   publishedSlug = l.slug;
   await dal.update({ id: l.id, description: "Описание.", wholeCountry: true });
-  await dal.submit(l.id); // draft → published
+  await dal.submit(l.id); // draft → pending_approval
+  // M2.3: admin approve() (Задача 5) още не съществува → директен DB update симулира одобрение.
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l.id));
 
   const d = await dal.createDraft({ title: "Sitemap Чернова Обява", categoryId, cityId });
   draftSlug = d.slug;

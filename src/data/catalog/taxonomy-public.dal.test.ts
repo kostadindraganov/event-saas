@@ -19,6 +19,8 @@ beforeAll(async () => {
   const dal = ListingDAL.for(owner);
   const l = await dal.createDraft({ title: "Recent Тест Обява", categoryId: cat!.id, cityId: await getTestCityId() });
   await dal.submit(l.id);
+  // M2.3: admin approve() (Задача 5) още не съществува → директен DB update симулира одобрение.
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l.id));
 });
 
 afterAll(async () => {

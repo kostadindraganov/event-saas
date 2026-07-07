@@ -32,13 +32,16 @@ beforeAll(async () => {
   const defs = await AttributeDAL.public().definitionsByCategory(categoryId);
   styleDefId = defs.find((d) => d.key === "style")!.id;
   await AttributeDAL.for(owner).setValues(l.id, [{ definitionId: styleDefId, value: ["classic", "artistic"] }]);
-  await dal.submit(l.id); // draft → published
+  await dal.submit(l.id); // draft → pending_approval
+  // M2.3: admin approve() (Задача 5) още не съществува → директен DB update симулира одобрение.
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l.id));
 
   const d = await dal.createDraft({ title: "Чернова Обява", categoryId, cityId });
   draftSlug = d.slug;
   const h = await dal.createDraft({ title: "Скрита Обява", categoryId, cityId });
   hiddenSlug = h.slug;
   await dal.submit(h.id);
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, h.id));
   await dal.hide(h.id);
 });
 

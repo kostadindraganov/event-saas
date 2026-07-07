@@ -47,6 +47,9 @@ beforeAll(async () => {
     const l = await ListingDAL.for(owner).createDraft({ title, categoryId, cityId });
     await PackageDAL.for(owner).create({ listingId: l.id, name: "П", priceFromCents: price });
     await ListingDAL.for(owner).submit(l.id);
+    // M2.3: submit() → pending_approval; admin approve() (Задача 5) още не съществува →
+    // директен DB update симулира одобрение, за да остане тестът за promoted валиден.
+    await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l.id));
     return l.id;
   };
 

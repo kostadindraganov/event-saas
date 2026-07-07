@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
-import { user } from "@/db/schema";
+import { user, listing } from "@/db/schema";
 import { ListingDAL } from "@/data/catalog/listing.dal";
 import { MessagingDAL } from "./messaging.dal";
 import type { SessionUser } from "@/data/users/require-user";
@@ -30,9 +30,13 @@ beforeAll(async () => {
   const dal = ListingDAL.for(vendor);
   const pub = await dal.createDraft({ title: "Запитване Обява", categoryId, cityId });
   await dal.submit(pub.id);
+  // M2.3: submit() → pending_approval; admin approve() (Задача 5) още не съществува →
+  // директен DB update симулира одобрение, за да остане messaging-логиката (изисква published) тестваема.
+  await testDb.update(listing).set({ status: "published", publishedAt: new Date() }).where(eq(listing.id, pub.id));
   publishedId = pub.id;
   const hid = await dal.createDraft({ title: "Скрита Запитване", categoryId, cityId });
   await dal.submit(hid.id);
+  await testDb.update(listing).set({ status: "published", publishedAt: new Date() }).where(eq(listing.id, hid.id));
   await dal.hide(hid.id);
   hiddenId = hid.id;
 });

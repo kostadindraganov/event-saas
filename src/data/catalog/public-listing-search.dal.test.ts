@@ -24,9 +24,13 @@ beforeAll(async () => {
   const l1 = await dal.createDraft({ title: "Сватбен фотограф Пловдив", categoryId, cityId });
   await dal.update({ id: l1.id, description: "Емоционална фотография за вашия ден." });
   await dal.submit(l1.id);
+  // M2.3: submit() → pending_approval; admin approve() (Задача 5) още не съществува →
+  // директен DB update симулира одобрение, за да остане тестът за публичното търсене валиден.
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l1.id));
   l1Id = l1.id;
   const l2 = await dal.createDraft({ title: "Корпоративно видео", categoryId, cityId });
   await dal.submit(l2.id);
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l2.id));
   l2Id = l2.id;
   const draft = await dal.createDraft({ title: "Сватбен фотограф чернова", categoryId, cityId });
   draftId = draft.id;

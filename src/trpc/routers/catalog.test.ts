@@ -44,7 +44,8 @@ test("listing flow през router-а: create→update→submit", async () => {
   const updated = await caller.catalog.listing.update({ id: draft.id, description: "през tRPC" });
   expect(updated.description).toBe("през tRPC");
   const pub = await caller.catalog.listing.submit({ id: draft.id });
-  expect(pub.status).toBe("published");
+  // M2.3: submit() → pending_approval (не published); admin approve() (Задача 5) сеща publishedAt.
+  expect(pub.status).toBe("pending_approval");
 });
 
 test("createDraft без auth → UNAUTHORIZED", async () => {
@@ -86,5 +87,6 @@ test("пълен flow през caller-а: draft→региони→атрибу�
   await caller.catalog.video.add({ listingId: draft.id, url: "https://youtu.be/dQw4w9WgXcQ" });
 
   const published = await caller.catalog.listing.submit({ id: draft.id });
-  expect(published.status).toBe("published");
+  // M2.3: submit() → pending_approval (не published); admin approve() (Задача 5) сеща publishedAt.
+  expect(published.status).toBe("pending_approval");
 });

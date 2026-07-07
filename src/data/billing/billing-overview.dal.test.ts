@@ -39,6 +39,12 @@ async function makeSystemHidden(owner: SessionUser, cityId: string, title: strin
   return l.id;
 }
 
+// M2.3: submit() → pending_approval; admin approve() (Задача 5) още не съществува →
+// директен DB update симулира одобрение, за да остане валидна billing-логиката тук (keepListing и др.).
+async function approve(id: string) {
+  await testDb.update(listing).set({ status: "published", publishedAt: new Date() }).where(eq(listing.id, id));
+}
+
 test("mine(): без ред в subscription → subscription null, systemHidden []", async () => {
   const overview = await BillingDAL.for(other).mine("bg");
   expect(overview.subscription).toBeNull();
@@ -68,6 +74,7 @@ test("keepListing(): публикува избраната, скрива ост�
   const dal = ListingDAL.for(vendor);
   const a = await dal.createDraft({ title: "Запази А", categoryId, cityId });
   await dal.submit(a.id);
+  await approve(a.id);
   const bId = await makeSystemHidden(vendor, cityId, "Запази Б");
   await BillingDAL.for(vendor).keepListing(bId);
   const [rowA] = await testDb.select().from(listing).where(eq(listing.id, a.id));
@@ -87,6 +94,7 @@ test("keepListing(): premium — публикува избраната, publishe
   const dal = ListingDAL.for(uu);
   const b = await dal.createDraft({ title: "Прем Б публична", categoryId: catB!.id, cityId }); // кат. B
   await dal.submit(b.id);
+  await approve(b.id);
   const aId = await makeSystemHidden(uu, cityId, "Прем А скрита"); // кат. A (module categoryId)
   await BillingDAL.for(uu).keepListing(aId);
   const [rowA] = await testDb.select().from(listing).where(eq(listing.id, aId));
@@ -105,6 +113,7 @@ test("keepListing(): standard swap — hidden става published, старат
   const dal = ListingDAL.for(uu);
   const old = await dal.createDraft({ title: "Стд стара", categoryId, cityId });
   await dal.submit(old.id);
+  await approve(old.id);
   const hiddenId = await makeSystemHidden(uu, cityId, "Стд скрита");
   await BillingDAL.for(uu).keepListing(hiddenId);
   const [rowOld] = await testDb.select().from(listing).where(eq(listing.id, old.id));

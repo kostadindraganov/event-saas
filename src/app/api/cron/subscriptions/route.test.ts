@@ -64,6 +64,9 @@ test("изтекъл гратис → published обявите се скрива
   const dal = ListingDAL.for(sessionUser);
   const l = await dal.createDraft({ title: "Изтекъл Гратис Тест", categoryId, cityId });
   await dal.submit(l.id);
+  // M2.3: submit() → pending_approval; admin approve() (Задача 5) още не съществува →
+  // директен DB update симулира одобрение, за да остане cron-логиката (изисква published) тестваема.
+  await db.update(listing).set({ status: "published", publishedAt: new Date() }).where(eq(listing.id, l.id));
 
   // сега гратисът изтича (симулира изминало време без потребителят да е направил нищо)
   await createTestSubscription(userId, {
@@ -93,6 +96,7 @@ test("неизтекъл гратис → no-op (обявата остава pub
   const dal = ListingDAL.for(u2Session);
   const l = await dal.createDraft({ title: "Неизтекъл Гратис Тест", categoryId, cityId });
   await dal.submit(l.id);
+  await db.update(listing).set({ status: "published", publishedAt: new Date() }).where(eq(listing.id, l.id));
 
   await POST(req("Bearer test-cron-secret"));
 

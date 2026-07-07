@@ -24,6 +24,9 @@ beforeAll(async () => {
   const dal = ListingDAL.for(vendor);
   const pub = await dal.createDraft({ title: "Чат Обява", categoryId, cityId });
   await dal.submit(pub.id);
+  // M2.3: submit() → pending_approval; admin approve() (Задача 5) още не съществува →
+  // директен DB update симулира одобрение, за да остане messaging-логиката (изисква published) тестваема.
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, pub.id));
   publishedId = pub.id;
 });
 
@@ -59,6 +62,7 @@ test("unreadCount: глобален брой непрочетени от дру�
   const dal = ListingDAL.for(vendor);
   const l2 = await dal.createDraft({ title: "Чат Обява 2", categoryId: await getTestCategoryId(), cityId: await getTestCityId() });
   await dal.submit(l2.id);
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l2.id));
   const before = await MessagingDAL.for(vendor).unreadCount();
   const { threadId } = await MessagingDAL.for(customer).createInquiry({ listingId: l2.id, body: "Ново" });
   const after = await MessagingDAL.for(vendor).unreadCount();
@@ -93,6 +97,7 @@ test("скрита обява НЕ спира съществуващ чат; н�
     .limit(1);
   const l3 = await dal.createDraft({ title: "Чат Обява 3", categoryId: otherCat!.id, cityId: await getTestCityId() });
   await dal.submit(l3.id);
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l3.id));
   const { threadId } = await MessagingDAL.for(customer).createInquiry({ listingId: l3.id, body: "Здр" });
   await testDb.update(schema.listing).set({ status: "hidden" }).where(eq(schema.listing.id, l3.id));
   const fromCustomer = await MessagingDAL.for(customer).sendMessage(threadId, "Още сте ли тук?");

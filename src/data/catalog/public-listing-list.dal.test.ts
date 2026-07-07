@@ -49,6 +49,9 @@ beforeAll(async () => {
     await PackageDAL.for(u).create({ listingId: l.id, name: "П", priceFromCents: price });
     if (style) await AttributeDAL.for(u).setValues(l.id, [{ definitionId: styleDefId, value: style }]);
     await ListingDAL.for(u).submit(l.id);
+    // M2.3: submit() → pending_approval; admin approve() (Задача 5) още не съществува →
+    // директен DB update симулира одобрение, за да остане тестът за публичния каталог валиден.
+    await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l.id));
     return l;
   };
   const evtina = await mk(owner, "Обява Евтина", cityA, 10000, ["classic"]);

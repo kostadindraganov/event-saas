@@ -42,7 +42,7 @@ export type ListingDTO = z.infer<typeof ListingDTOSchema>;
 
 export type ListingSummaryDTO = Pick<
   ListingDTO,
-  "id" | "slug" | "title" | "status" | "categoryId" | "cityId" | "priceFromCents" | "coverImageId"
+  "id" | "slug" | "title" | "status" | "categoryId" | "cityId" | "priceFromCents" | "coverImageId" | "rejectionReason"
 >;
 
 export const PackageInputSchema = z.object({
