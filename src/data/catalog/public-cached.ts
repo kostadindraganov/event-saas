@@ -86,3 +86,11 @@ export function cachedListCategories() {
     { tags: ["listings"], revalidate: HOUR },
   )();
 }
+
+export function cachedPromotedHome(limit: number) {
+  return unstable_cache(
+    () => ListingDAL.public().promoted(limit),
+    ["promoted-home", String(limit)],
+    { tags: ["listings"], revalidate: HOUR },
+  )();
+}

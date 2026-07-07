@@ -12,6 +12,7 @@ export type PublicListingCardDTO = {
   reviewCount: number;
   coverCfImageId: string | null;
   publishedAt: string; // ISO string
+  promoted: boolean; // активна промоция сега (startsAt <= now < endsAt)
 };
 
 export type PublicPackageDTO = {

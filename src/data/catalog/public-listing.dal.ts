@@ -1,14 +1,24 @@
 import "server-only";
-import { and, asc, count, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   attributeDefinition, category, city, listing, listingAttribute,
-  listingImage, listingServiceRegion, listingVideo, region, servicePackage, user,
+  listingImage, listingServiceRegion, listingVideo, promotion, region, servicePackage, user,
 } from "@/db/schema";
 import type {
   PublicListingCardDTO, PublicListingDetailDTO, PublicListingFilterInput,
   PublicListingPage, PublicPackageDTO,
 } from "./public.dto";
+
+// една активна промоция per обява е app-level инвариант (activate + projectOrderEvent guard,
+// виж billing.dal.ts) → този LEFT JOIN връща максимум 1 ред на listing, без fanout риск.
+function activePromotionJoin(): SQL {
+  return and(
+    eq(promotion.listingId, listing.id),
+    lte(promotion.startsAt, sql`now()`),
+    gt(promotion.endsAt, sql`now()`),
+  )!;
+}
 
 export const cardColumns = {
   id: listing.id,
@@ -24,6 +34,7 @@ export const cardColumns = {
   reviewCount: listing.reviewCount,
   coverCfImageId: listingImage.cfImageId,
   publishedAt: listing.publishedAt,
+  promotedStartsAt: promotion.startsAt, // non-null ⇒ promoted; стойността е и tie-breaker-ът
 };
 
 type CardRow = {
@@ -32,6 +43,7 @@ type CardRow = {
   cityName: string | null; wholeCountry: boolean;
   priceFromCents: number | null; ratingAvg: string | null; reviewCount: number;
   coverCfImageId: string | null; publishedAt: Date | null;
+  promotedStartsAt: Date | null;
 };
 
 export function toCard(r: CardRow): PublicListingCardDTO {
@@ -49,6 +61,7 @@ export function toCard(r: CardRow): PublicListingCardDTO {
     reviewCount: r.reviewCount,
     coverCfImageId: r.coverCfImageId,
     publishedAt: r.publishedAt!.toISOString(), // status='published' ⇒ винаги сетнат
+    promoted: r.promotedStartsAt !== null,
   };
 }
 
@@ -88,6 +101,7 @@ export class PublicListingDAL {
       .innerJoin(city, eq(listing.cityId, city.id))
       .innerJoin(user, eq(listing.ownerId, user.id))
       .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
+      .leftJoin(promotion, activePromotionJoin())
       .where(and(eq(listing.slug, slug), eq(listing.status, "published")));
     if (!row) return null;
 
@@ -182,7 +196,10 @@ export class PublicListingDAL {
     const orderBy =
       input.sort === "priceAsc" ? [asc(listing.priceFromCents)]
       : input.sort === "priceDesc" ? [desc(listing.priceFromCents)]
-      : [desc(listing.publishedAt)];
+      // default («препоръчани» = new): promoted-first, tie-break по startsAt DESC, после publishedAt DESC.
+      // promotedStartsAt е булев-подобен (null/non-null) — `is not null` е винаги true/false, никога null,
+      // затова първият ключ group-ва чисто без NULLS FIRST/LAST изненади от plain desc(timestamp).
+      : [desc(sql`${promotion.startsAt} is not null`), desc(promotion.startsAt), desc(listing.publishedAt)];
 
     const rows = await db
       .select(cardColumns)
@@ -190,6 +207,7 @@ export class PublicListingDAL {
       .innerJoin(category, eq(listing.categoryId, category.id))
       .innerJoin(city, eq(listing.cityId, city.id))
       .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
+      .leftJoin(promotion, activePromotionJoin())
       .where(where)
       .orderBy(...orderBy)
       .limit(perPage)
@@ -216,6 +234,7 @@ export class PublicListingDAL {
       .innerJoin(category, eq(listing.categoryId, category.id))
       .innerJoin(city, eq(listing.cityId, city.id))
       .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
+      .leftJoin(promotion, activePromotionJoin())
       .where(where)
       .orderBy(desc(listing.publishedAt))
       .limit(pp)
@@ -232,8 +251,24 @@ export class PublicListingDAL {
       .innerJoin(category, eq(listing.categoryId, category.id))
       .innerJoin(city, eq(listing.cityId, city.id))
       .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
+      .leftJoin(promotion, activePromotionJoin())
       .where(eq(listing.status, "published"))
       .orderBy(desc(listing.publishedAt))
+      .limit(Math.min(Math.max(limit, 1), 50));
+    return rows.map(toCard);
+  }
+
+  // карусел «Промотирани» на началната — само активно промотирани published обяви
+  async promoted(limit: number): Promise<PublicListingCardDTO[]> {
+    const rows = await db
+      .select(cardColumns)
+      .from(listing)
+      .innerJoin(category, eq(listing.categoryId, category.id))
+      .innerJoin(city, eq(listing.cityId, city.id))
+      .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
+      .innerJoin(promotion, activePromotionJoin())
+      .where(eq(listing.status, "published"))
+      .orderBy(desc(promotion.startsAt))
       .limit(Math.min(Math.max(limit, 1), 50));
     return rows.map(toCard);
   }
