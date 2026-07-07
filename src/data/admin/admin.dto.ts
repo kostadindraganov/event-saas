@@ -38,3 +38,11 @@ export type AdminListingRowDTO = {
   createdAt: string;
   rejectionReason: string | null;
 };
+
+export type AdminDashboardStatsDTO = {
+  pendingListings: number;
+  publishedListings: number;
+  users: number;
+  activeSubscriptions: number;
+  activePromotions: number;
+};

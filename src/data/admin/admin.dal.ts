@@ -1,12 +1,12 @@
 import "server-only";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { category, city, listing, session, setting, user } from "@/db/schema";
+import { category, city, listing, promotion, session, setting, subscription, user } from "@/db/schema";
 import { BillingDAL, getBillingSettings, type BillingSettings } from "@/data/billing/billing.dal";
 import { listingApprovedEmail, listingRejectedEmail, sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
-import type { AdminListingRowDTO, AdminUserDTO, BillingSettingsInput } from "./admin.dto";
+import type { AdminListingRowDTO, AdminUserDTO, AdminDashboardStatsDTO, BillingSettingsInput } from "./admin.dto";
 
 // fire-and-forget: чете email от user; огледален на billing.dal.ts:124-139 (never-throw в caller-а)
 async function notifyListingApproved(userId: string, listingTitle: string, slug: string): Promise<void> {
@@ -170,5 +170,24 @@ export class AdminDAL {
         .onConflictDoUpdate({ target: setting.key, set: { value: input.promo } });
     });
     return getBillingSettings();
+  }
+
+  // 5 скаларни count-а паралелно (Promise.all). Скаларна select({ n: count() }) конвенция.
+  static async dashboardStats(): Promise<AdminDashboardStatsDTO> {
+    const now = new Date();
+    const [pending, published, activeUsers, subs, promos] = await Promise.all([
+      db.select({ n: count() }).from(listing).where(eq(listing.status, "pending_approval")),
+      db.select({ n: count() }).from(listing).where(eq(listing.status, "published")),
+      db.select({ n: count() }).from(user).where(isNull(user.deletedAt)),
+      db.select({ n: count() }).from(subscription).where(eq(subscription.status, "active")),
+      db.select({ n: count() }).from(promotion).where(and(lte(promotion.startsAt, now), gt(promotion.endsAt, now))),
+    ]);
+    return {
+      pendingListings: pending[0]?.n ?? 0,
+      publishedListings: published[0]?.n ?? 0,
+      users: activeUsers[0]?.n ?? 0,
+      activeSubscriptions: subs[0]?.n ?? 0,
+      activePromotions: promos[0]?.n ?? 0,
+    };
   }
 }
