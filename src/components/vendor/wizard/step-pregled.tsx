@@ -48,7 +48,7 @@ export function StepPregled({
 
   const submit = useMutation(
     trpc.catalog.listing.submit.mutationOptions({
-      onSuccess: () => { toast.success(t("published")); router.refresh(); },
+      onSuccess: () => { toast.success(t("submitted")); router.refresh(); },
       // billing entitlement грешки (err.data?.code==="FORBIDDEN" + err.message) → отделен CTA към абонамента;
       // idiom по inquiry-form.tsx (err.data?.code branch)
       onError: (err) => {

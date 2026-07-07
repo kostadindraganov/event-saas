@@ -103,6 +103,7 @@
       "publish": "Publish listing",
       "publishing": "Publishing…",
       "published": "The listing is live.",
+      "submitted": "The listing was submitted for approval.",
       "rejectedReason": "Rejection reason",
       "imagesCount": "{count} images",
       "videosCount": "{count} videos",
