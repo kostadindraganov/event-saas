@@ -2,8 +2,9 @@ import { afterEach, expect, test } from "vitest";
 import { BookingDAL } from "./booking.dal";
 import {
   testDb, createTestUser, cleanupTestUser, createTestListing, getTestCategoryId, getTestCityId,
-  createTestServiceType,
+  createTestServiceType, createTestAvailability,
 } from "@/test/db-helpers";
+import { weekdayOf } from "./slots";
 import * as schema from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { SessionUser } from "@/data/users/require-user";
@@ -67,6 +68,8 @@ test("request(): часова услуга без startTime → BAD_REQUEST INVA
 test("request(): happy path — BookingDTO с изчислен endTime, вижда се в listMine()", async () => {
   const { listingId } = await vendorWithListing();
   const st = await createTestServiceType(listingId, { kind: "hourly", name: "Час", durationMinutes: 90 });
+  // rule стартира точно в 10:00, за да се подравни slot-стъпката (90мин) с искания старт
+  await createTestAvailability(listingId, { weekday: weekdayOf("2099-06-01"), startTime: "10:00", endTime: "12:00" });
   const customer = await newCustomer();
 
   const dto = await BookingDAL.for(customer).request({
@@ -81,4 +84,27 @@ test("request(): happy path — BookingDTO с изчислен endTime, вижд
 
   const mine = await BookingDAL.for(customer).listMine();
   expect(mine.some((b) => b.id === dto.id)).toBe(true);
+});
+
+test("request(): часова услуга без configured availabilityRule → CONFLICT SLOT_UNAVAILABLE", async () => {
+  const { listingId } = await vendorWithListing();
+  const st = await createTestServiceType(listingId, { kind: "hourly", name: "Час", durationMinutes: 60 });
+  const customer = await newCustomer();
+
+  await expect(BookingDAL.for(customer).request({
+    listingId, serviceTypeId: st.id, eventDate: "2099-06-01", startTime: "10:00", phone: "0888123123",
+  })).rejects.toMatchObject({ code: "CONFLICT", message: "SLOT_UNAVAILABLE" });
+});
+
+test("request(): валиден слот в рамките на availabilityRule → успех", async () => {
+  const { listingId } = await vendorWithListing();
+  const st = await createTestServiceType(listingId, { kind: "hourly", name: "Час", durationMinutes: 60 });
+  await createTestAvailability(listingId, { weekday: weekdayOf("2099-06-02"), startTime: "09:00", endTime: "11:00" });
+  const customer = await newCustomer();
+
+  const dto = await BookingDAL.for(customer).request({
+    listingId, serviceTypeId: st.id, eventDate: "2099-06-02", startTime: "10:00", phone: "0888123123",
+  });
+  expect(dto.startTime).toBe("10:00");
+  expect(dto.endTime).toBe("11:00");
 });

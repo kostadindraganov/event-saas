@@ -43,7 +43,8 @@ function toBookingDTO(r: {
   message: string | null; declineReason: string | null; cancelReason: string | null;
   confirmedAt: Date | null; createdAt: Date;
 }): BookingDTO {
-  return { ...r };
+  // ponytail: pg "time" колоните се четат обратно като "HH:MM:SS" — огледално на T8 (booking.dal.ts toBookingDTO).
+  return { ...r, startTime: r.startTime ? r.startTime.slice(0, 5) : null, endTime: r.endTime ? r.endTime.slice(0, 5) : null };
 }
 
 export class CalendarDAL {

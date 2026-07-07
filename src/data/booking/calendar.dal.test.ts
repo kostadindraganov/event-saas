@@ -123,6 +123,27 @@ test("listIncoming: скоупнато само до обявите на owner-�
   expect(others.some((b) => b.listingId === listingId)).toBe(false);
 });
 
+test("listIncoming: startTime/endTime нормализирани до \"HH:MM\" (без секунди от pg time)", async () => {
+  const { user, listingId } = await ownerWithListing();
+  const dal = CalendarDAL.for(user);
+  const st = await dal.createServiceType({
+    listingId, kind: "hourly", name: "Час", durationMinutes: 60, priceFromCents: 10000, isActive: true,
+  });
+
+  const customer = await createTestUser();
+  cleanupIds.push(customer.id);
+  await createTestBooking(listingId, st.id, customer.id, {
+    status: "confirmed", isFullDay: false, eventDate: "2099-03-05",
+    startTime: "14:00:00", endTime: "15:00:00", phone: "0888123123",
+  });
+
+  const mine = await dal.listIncoming();
+  const row = mine.find((b) => b.listingId === listingId);
+  expect(row?.startTime).toBe("14:00");
+  expect(row?.startTime).toHaveLength(5);
+  expect(row?.endTime).toBe("15:00");
+});
+
 test("availabilityMonth: confirmed full_day → busy; blockedDate → busy; свободен ден → free", async () => {
   const { user, listingId } = await ownerWithListing();
   const dal = CalendarDAL.for(user);

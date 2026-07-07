@@ -1,10 +1,10 @@
 import "server-only";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { booking, bookingServiceType, listing, user } from "@/db/schema";
+import { availabilityRule, blockedDate, booking, bookingServiceType, listing, user } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
-import { addMinutes, isPastDate } from "./slots";
+import { addMinutes, generateDaySlots, isPastDate, weekdayOf } from "./slots";
 import {
   bookingCancelledEmail, bookingConfirmedEmail, bookingDeclinedEmail, bookingRequestedEmail, sendEmail,
 } from "@/lib/email";
@@ -116,8 +116,32 @@ export class BookingDAL {
       if (!input.startTime || !/^\d{2}:\d{2}(:\d{2})?$/.test(input.startTime)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "INVALID_START_TIME" });
       }
-      startTime = input.startTime;
-      endTime = addMinutes(input.startTime, st.durationMinutes!);
+      startTime = input.startTime.slice(0, 5);
+      endTime = addMinutes(startTime, st.durationMinutes!);
+
+      // choke-point: заявеният слот трябва да е сред реално предлаганите — същата slot математика
+      // като PublicCalendarDAL.slotsDay (calendar.dal.ts), инлайнато тук (T7 mapper прецедент за
+      // умишлено малко дублиране между DAL-и вместо cross-file зависимост).
+      const weekday = weekdayOf(input.eventDate);
+      const [rules, blockedRows, confirmed] = await Promise.all([
+        db.select({ startTime: availabilityRule.startTime, endTime: availabilityRule.endTime })
+          .from(availabilityRule)
+          .where(and(eq(availabilityRule.listingId, input.listingId), eq(availabilityRule.weekday, weekday))),
+        db.select({ id: blockedDate.id }).from(blockedDate)
+          .where(and(eq(blockedDate.listingId, input.listingId), eq(blockedDate.date, input.eventDate))),
+        db.select({ isFullDay: booking.isFullDay, startTime: booking.startTime, endTime: booking.endTime })
+          .from(booking)
+          .where(and(eq(booking.listingId, input.listingId), eq(booking.status, "confirmed"), eq(booking.eventDate, input.eventDate))),
+      ]);
+      const confirmedFullDay = confirmed.some((c) => c.isFullDay);
+      const confirmedHourly = confirmed
+        .filter((c) => !c.isFullDay && c.startTime && c.endTime)
+        .map((c) => ({ startTime: c.startTime!, endTime: c.endTime! }));
+      const offeredSlots = generateDaySlots({
+        rules, durationMinutes: st.durationMinutes!, blocked: blockedRows.length > 0, confirmedFullDay, confirmedHourly,
+      });
+      const slotAvailable = offeredSlots.some((s) => s.startTime === startTime && s.endTime === endTime);
+      if (!slotAvailable) throw new TRPCError({ code: "CONFLICT", message: "SLOT_UNAVAILABLE" });
     }
 
     const [row] = await db.insert(booking).values({
