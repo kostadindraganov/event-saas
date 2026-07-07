@@ -270,6 +270,20 @@ test("activePromotionForListing: изтекла (endsAt<now) → false", async (
   await expect(testDb.transaction((tx) => BillingDAL.activePromotionForListing(tx, draft.id))).resolves.toBe(false);
 });
 
+test("activePromotionForListing: незапочнала (startsAt>now) → false", async () => {
+  const { user } = await newOwner();
+  const cityId = await getTestCityId();
+  const [categoryA] = await twoCategories();
+  const draft = await ListingDAL.for(user).createDraft({ title: "Промо Незапочнала Тест", categoryId: categoryA!, cityId });
+  const now = new Date();
+  await createTestPromotion(draft.id, {
+    source: "purchased",
+    startsAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    endsAt: new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000),
+  });
+  await expect(testDb.transaction((tx) => BillingDAL.activePromotionForListing(tx, draft.id))).resolves.toBe(false);
+});
+
 test("countActiveIncludedPromotions: брои само активни 'premium_included' на owner-а, не 'purchased'", async () => {
   const { user, id } = await newOwner();
   const cityId = await getTestCityId();
