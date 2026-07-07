@@ -1,12 +1,25 @@
 import "server-only";
-import { and, count, desc, eq, gt, inArray, isNull, lte } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { category, city, listing, promotion, session, setting, subscription, user } from "@/db/schema";
 import { BillingDAL, getBillingSettings, type BillingSettings } from "@/data/billing/billing.dal";
 import { listingApprovedEmail, listingRejectedEmail, sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
-import type { AdminListingRowDTO, AdminUserDTO, AdminDashboardStatsDTO, BillingSettingsInput } from "./admin.dto";
+import type {
+  AdminListingRowDTO,
+  AdminUserDTO,
+  AdminDashboardStatsDTO,
+  BillingSettingsInput,
+  CategoryCreateInput,
+  CategoryUpdateInput,
+  CategoryRowDTO,
+} from "./admin.dto";
+
+// drizzle-orm/neon-serverless обвива pg грешката — реалният код е в err.cause.code
+function pgCode(err: unknown): string | undefined {
+  return (err as { code?: string; cause?: { code?: string } })?.cause?.code;
+}
 
 // fire-and-forget: чете email от user; огледален на billing.dal.ts:124-139 (never-throw в caller-а)
 async function notifyListingApproved(userId: string, listingTitle: string, slug: string): Promise<void> {
@@ -189,5 +202,45 @@ export class AdminDAL {
       activeSubscriptions: subs[0]?.n ?? 0,
       activePromotions: promos[0]?.n ?? 0,
     };
+  }
+
+  static async createCategory(input: CategoryCreateInput): Promise<{ id: string }> {
+    try {
+      const [row] = await db
+        .insert(category)
+        .values({ slug: input.slug, nameBg: input.nameBg, nameEn: input.nameEn, sortOrder: input.sortOrder })
+        .returning({ id: category.id });
+      return row!;
+    } catch (err) {
+      if (pgCode(err) === "23505") throw new TRPCError({ code: "CONFLICT", message: "SLUG_TAKEN" });
+      throw err;
+    }
+  }
+
+  static async updateCategory(input: CategoryUpdateInput): Promise<void> {
+    const { id, ...rest } = input;
+    if (Object.keys(rest).length === 0) return;
+    try {
+      await db.update(category).set(rest).where(eq(category.id, id));
+    } catch (err) {
+      if (pgCode(err) === "23505") throw new TRPCError({ code: "CONFLICT", message: "SLUG_TAKEN" });
+      throw err;
+    }
+  }
+
+  // soft-delete: reuse съществуващия isActive флаг (каталогът чете isActive=true). Hard-delete извън scope.
+  static async softDeleteCategory(id: string): Promise<void> {
+    await db.update(category).set({ isActive: false }).where(eq(category.id, id));
+  }
+
+  // admin таблица: вкл. неактивни (за разлика от TaxonomyDAL.listCategories)
+  static async listCategoriesAdmin(): Promise<CategoryRowDTO[]> {
+    return db
+      .select({
+        id: category.id, slug: category.slug, nameBg: category.nameBg,
+        nameEn: category.nameEn, sortOrder: category.sortOrder, isActive: category.isActive,
+      })
+      .from(category)
+      .orderBy(asc(category.sortOrder));
   }
 }
