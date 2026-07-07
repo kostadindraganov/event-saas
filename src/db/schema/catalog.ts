@@ -1,6 +1,6 @@
 import {
   boolean, customType, index, integer, jsonb, numeric, pgEnum, pgTable,
-  primaryKey, text, timestamp, unique, uuid,
+  primaryKey, text, timestamp, unique, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { user } from "./auth";
@@ -178,4 +178,11 @@ export const promotion = pgTable("promotion", {
   endsAt: timestamp("ends_at").notNull(), // календарен прозорец — тече и при скрита обява
   polarOrderId: text("polar_order_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  // «активни промоции сега» query-time филтър (endsAt > now) — карусел/каталог/PromotionManager
+  index("promo_ends_idx").on(t.endsAt),
+  // JOIN от каталога/карусела/myPromotions към активна промоция на конкретна обява
+  index("promo_listing_idx").on(t.listingId, t.endsAt),
+  // «една промоция per Polar order» — идемпотентност на projectOrderEvent на DB ниво (partial: NULL позволени за premium_included)
+  uniqueIndex("promo_order_idx").on(t.polarOrderId).where(sql`${t.polarOrderId} is not null`),
+]);

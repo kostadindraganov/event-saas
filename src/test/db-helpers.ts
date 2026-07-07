@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq, or } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
@@ -48,6 +48,30 @@ export async function createTestSubscription(
   return row;
 }
 
+export async function createTestPromotion(
+  listingId: string,
+  opts: {
+    source: "premium_included" | "purchased";
+    startsAt?: Date;
+    endsAt?: Date;
+    polarOrderId?: string;
+  },
+) {
+  const now = new Date();
+  const [row] = await testDb
+    .insert(schema.promotion)
+    .values({
+      listingId,
+      source: opts.source,
+      startsAt: opts.startsAt ?? now,
+      endsAt: opts.endsAt ?? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      polarOrderId: opts.polarOrderId ?? null,
+    })
+    .returning();
+  if (!row) throw new Error("INSERT_FAILED");
+  return row;
+}
+
 export async function cleanupTestUser(userId: string) {
   // thread FK-тата (customerId/vendorId) са no-action → трий нишките първо (message каскадира от thread)
   await testDb.delete(schema.thread).where(
@@ -55,6 +79,13 @@ export async function cleanupTestUser(userId: string) {
   );
   // subscription.userId FK → user.id е no-action; трий преди user
   await testDb.delete(schema.subscription).where(eq(schema.subscription.userId, userId));
+  // promotion каскадира от listing (onDelete: cascade) — explicit delete тук за симетрия/яснота,
+  // не заради нужда (виж catalog.ts promotion FK), преди самото изтриване на listing.
+  const ownListingIds = testDb
+    .select({ id: schema.listing.id })
+    .from(schema.listing)
+    .where(eq(schema.listing.ownerId, userId));
+  await testDb.delete(schema.promotion).where(inArray(schema.promotion.listingId, ownListingIds));
   // обявите каскадират децата си; savedListing.userId има onDelete cascade → авто при delete user
   await testDb.delete(schema.listing).where(eq(schema.listing.ownerId, userId));
   await testDb.delete(schema.user).where(eq(schema.user.id, userId));
