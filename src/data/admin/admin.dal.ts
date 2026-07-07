@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, count, desc, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { attributeDefinition, category, city, listing, listingAttribute, promotion, session, setting, subscription, user } from "@/db/schema";
+import { attributeDefinition, category, city, listing, listingAttribute, listingServiceRegion, promotion, region, session, setting, subscription, user } from "@/db/schema";
 import { AttributeDAL } from "@/data/catalog/attribute.dal";
 import { BillingDAL, getBillingSettings, type BillingSettings } from "@/data/billing/billing.dal";
 import { listingApprovedEmail, listingRejectedEmail, sendEmail } from "@/lib/email";
@@ -17,6 +17,12 @@ import type {
   CategoryRowDTO,
   AttributeDefinitionCreateInput,
   AttributeDefinitionUpdateInput,
+  RegionCreateInput,
+  RegionUpdateInput,
+  RegionRowDTO,
+  CityCreateInput,
+  CityUpdateInput,
+  CityRowDTO,
 } from "./admin.dto";
 
 // drizzle-orm/neon-serverless обвива pg грешката — реалният код е в err.cause.code
@@ -313,5 +319,82 @@ export class AdminDAL {
   // reuse на read-DAL: същият shape (AttributeDefinitionDTO[]), сортиран по sortOrder, вкл. options
   static listByCategoryAdmin(categoryId: string) {
     return AttributeDAL.public().definitionsByCategory(categoryId);
+  }
+
+  static async listRegions(): Promise<RegionRowDTO[]> {
+    return db
+      .select({ id: region.id, slug: region.slug, name: region.name })
+      .from(region)
+      .orderBy(asc(region.name));
+  }
+
+  static async createRegion(input: RegionCreateInput): Promise<{ id: string }> {
+    try {
+      const [row] = await db.insert(region).values({ slug: input.slug, name: input.name }).returning({ id: region.id });
+      return row!;
+    } catch (err) {
+      if (pgCode(err) === "23505") throw new TRPCError({ code: "CONFLICT", message: "SLUG_TAKEN" });
+      throw err;
+    }
+  }
+
+  static async updateRegion(input: RegionUpdateInput): Promise<void> {
+    try {
+      await db.update(region).set({ slug: input.slug, name: input.name }).where(eq(region.id, input.id));
+    } catch (err) {
+      if (pgCode(err) === "23505") throw new TRPCError({ code: "CONFLICT", message: "SLUG_TAKEN" });
+      throw err;
+    }
+  }
+
+  // guard: регионът не може да се трие, докато има градове или service-region обвързаности
+  static async deleteRegion(id: string): Promise<void> {
+    const [cityCount] = await db.select({ n: count() }).from(city).where(eq(city.regionId, id));
+    const [lsrCount] = await db.select({ n: count() }).from(listingServiceRegion).where(eq(listingServiceRegion.regionId, id));
+    if ((cityCount?.n ?? 0) > 0 || (lsrCount?.n ?? 0) > 0) {
+      throw new TRPCError({ code: "CONFLICT", message: "REGION_IN_USE" });
+    }
+    await db.delete(region).where(eq(region.id, id));
+  }
+
+  static async createCity(input: CityCreateInput): Promise<{ id: string }> {
+    try {
+      const [row] = await db
+        .insert(city)
+        .values({ regionId: input.regionId, slug: input.slug, name: input.name })
+        .returning({ id: city.id });
+      return row!;
+    } catch (err) {
+      if (pgCode(err) === "23505") throw new TRPCError({ code: "CONFLICT", message: "SLUG_TAKEN" });
+      if (pgCode(err) === "23503") throw new TRPCError({ code: "NOT_FOUND", message: "REGION_NOT_FOUND" });
+      throw err;
+    }
+  }
+
+  static async updateCity(input: CityUpdateInput): Promise<void> {
+    try {
+      await db
+        .update(city)
+        .set({ regionId: input.regionId, slug: input.slug, name: input.name })
+        .where(eq(city.id, input.id));
+    } catch (err) {
+      if (pgCode(err) === "23505") throw new TRPCError({ code: "CONFLICT", message: "SLUG_TAKEN" });
+      throw err;
+    }
+  }
+
+  // guard: градът не може да се трие, докато има обяви
+  static async deleteCity(id: string): Promise<void> {
+    const [c] = await db.select({ n: count() }).from(listing).where(eq(listing.cityId, id));
+    if ((c?.n ?? 0) > 0) throw new TRPCError({ code: "CONFLICT", message: "CITY_IN_USE" });
+    await db.delete(city).where(eq(city.id, id));
+  }
+
+  static async listCitiesByRegion(regionId: string): Promise<CityRowDTO[]> {
+    return db
+      .select({ id: city.id, regionId: city.regionId, slug: city.slug, name: city.name })
+      .from(city)
+      .where(eq(city.regionId, regionId))
+      .orderBy(asc(city.name));
   }
 }

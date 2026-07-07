@@ -105,3 +105,25 @@ export const AttributeDefinitionUpdateSchema = z
   .refine(optionsMatchType, optionsMsg);
 export type AttributeDefinitionCreateInput = z.infer<typeof AttributeDefinitionCreateSchema>;
 export type AttributeDefinitionUpdateInput = z.infer<typeof AttributeDefinitionUpdateSchema>;
+
+export type RegionRowDTO = { id: string; slug: string; name: string };
+export type CityRowDTO = { id: string; regionId: string; slug: string; name: string };
+
+const regionFields = {
+  slug: slugField, // reuse от Задача 9
+  name: z.string().min(1).max(100),
+};
+export const RegionCreateSchema = z.object(regionFields);
+export const RegionUpdateSchema = z.object({ id: z.uuid(), ...regionFields });
+export type RegionCreateInput = z.infer<typeof RegionCreateSchema>;
+export type RegionUpdateInput = z.infer<typeof RegionUpdateSchema>;
+
+const cityFields = {
+  regionId: z.uuid(),
+  slug: slugField,
+  name: z.string().min(1).max(100),
+};
+export const CityCreateSchema = z.object(cityFields);
+export const CityUpdateSchema = z.object({ id: z.uuid(), ...cityFields });
+export type CityCreateInput = z.infer<typeof CityCreateSchema>;
+export type CityUpdateInput = z.infer<typeof CityUpdateSchema>;

@@ -138,3 +138,60 @@ test("Задача 10: delete на неизползвана дефиниция �
   const defs = await AdminDAL.listByCategoryAdmin(categoryId);
   expect(defs.some((d) => d.id === id)).toBe(false);
 });
+
+test("Задача 11: region create/update, delete guard при наличен град", async () => {
+  const rSlug = `reg-${randomUUID().slice(0, 8)}`;
+  const region = await AdminDAL.createRegion({ slug: rSlug, name: "Тест Област" });
+  created.regionIds.push(region.id);
+
+  await AdminDAL.updateRegion({ id: region.id, slug: rSlug, name: "Област-2" });
+  const [rRow] = await testDb.select().from(schema.region).where(eq(schema.region.id, region.id));
+  expect(rRow?.name).toBe("Област-2");
+
+  const city = await AdminDAL.createCity({ regionId: region.id, slug: `grad-${randomUUID().slice(0, 8)}`, name: "Тест Град" });
+  created.cityIds.push(city.id);
+
+  // регион с град → REGION_IN_USE
+  await expect(AdminDAL.deleteRegion(region.id))
+    .rejects.toMatchObject({ code: "CONFLICT", message: "REGION_IN_USE" });
+});
+
+test("Задача 11: city delete guard при наличен listing, иначе минава", async () => {
+  const region = await AdminDAL.createRegion({ slug: `reg-${randomUUID().slice(0, 8)}`, name: "Обл" });
+  created.regionIds.push(region.id);
+  const city = await AdminDAL.createCity({ regionId: region.id, slug: `grad-${randomUUID().slice(0, 8)}`, name: "Град" });
+  created.cityIds.push(city.id);
+
+  const u = await createTestUser();
+  created.userIds.push(u.id);
+  const categoryId = await getTestCategoryId();
+  const [l] = await testDb.insert(schema.listing)
+    .values({ ownerId: u.id, categoryId, cityId: city.id, slug: `t-${randomUUID().slice(0, 8)}`, title: "Т" })
+    .returning({ id: schema.listing.id });
+  created.listingIds.push(l!.id);
+
+  await expect(AdminDAL.deleteCity(city.id))
+    .rejects.toMatchObject({ code: "CONFLICT", message: "CITY_IN_USE" });
+
+  // махни listing-а → deleteCity минава
+  await testDb.delete(schema.listing).where(eq(schema.listing.id, l!.id));
+  created.listingIds = created.listingIds.filter((x) => x !== l!.id);
+  await AdminDAL.deleteCity(city.id);
+  created.cityIds = created.cityIds.filter((x) => x !== city.id);
+  const [gone] = await testDb.select().from(schema.city).where(eq(schema.city.id, city.id));
+  expect(gone).toBeUndefined();
+
+  // празен регион вече се трие
+  await AdminDAL.deleteRegion(region.id);
+  created.regionIds = created.regionIds.filter((x) => x !== region.id);
+});
+
+test("Задача 11: дубликат (regionId, slug) → CONFLICT SLUG_TAKEN", async () => {
+  const region = await AdminDAL.createRegion({ slug: `reg-${randomUUID().slice(0, 8)}`, name: "Обл" });
+  created.regionIds.push(region.id);
+  const slug = `grad-${randomUUID().slice(0, 8)}`;
+  const c = await AdminDAL.createCity({ regionId: region.id, slug, name: "Град" });
+  created.cityIds.push(c.id);
+  await expect(AdminDAL.createCity({ regionId: region.id, slug, name: "Друг" }))
+    .rejects.toMatchObject({ code: "CONFLICT", message: "SLUG_TAKEN" });
+});
