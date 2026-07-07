@@ -417,5 +417,123 @@
       "emptyRegions": "No regions.",
       "emptyCities": "Select a region to see its cities."
     }
+  },
+  "Booking": {
+    "status": {
+      "pending": "Awaiting confirmation",
+      "confirmed": "Confirmed",
+      "declined": "Declined",
+      "auto_declined": "Automatically declined",
+      "completed": "Completed",
+      "cancelled_by_customer": "Cancelled by customer",
+      "cancelled_by_vendor": "Cancelled by vendor"
+    },
+    "calendar": {
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month",
+      "monthLabel": "{month, select, 1 {January} 2 {February} 3 {March} 4 {April} 5 {May} 6 {June} 7 {July} 8 {August} 9 {September} 10 {October} 11 {November} other {December}} {year}",
+      "weekday": {
+        "0": "Mon", "1": "Tue", "2": "Wed", "3": "Thu", "4": "Fri", "5": "Sat", "6": "Sun"
+      },
+      "legend": "Free / Busy"
+    },
+    "calendarPage": {
+      "navLabel": "Calendar",
+      "title": "Calendar",
+      "noListings": "You have no published listings to manage a calendar for."
+    },
+    "serviceType": {
+      "title": "Services",
+      "add": "Add service",
+      "edit": "Edit",
+      "kind": "Type",
+      "kindFullDay": "Full day",
+      "kindHourly": "Hourly",
+      "name": "Name",
+      "nameInvalid": "Name must be at least 2 characters.",
+      "duration": "Duration (min.)",
+      "durationInvalid": "Duration must be a positive number.",
+      "price": "Price from",
+      "priceOptional": "Optional",
+      "priceInvalid": "Invalid price.",
+      "active": "Active",
+      "inactive": "Inactive",
+      "minutesShort": "min.",
+      "saving": "Saving…",
+      "save": "Save",
+      "errorSave": "Something went wrong saving. Try again.",
+      "errorInUse": "This service has bookings and can't be deleted.",
+      "remove": "Delete",
+      "removeConfirmTitle": "Delete this service?",
+      "removeConfirmBody": "This action cannot be undone.",
+      "cancel": "Cancel"
+    },
+    "availability": {
+      "title": "Weekly schedule",
+      "weekday": {
+        "0": "Monday", "1": "Tuesday", "2": "Wednesday", "3": "Thursday", "4": "Friday", "5": "Saturday", "6": "Sunday"
+      },
+      "saved": "Schedule saved.",
+      "saving": "Saving…",
+      "save": "Save schedule",
+      "errorInvalidRange": "The start time must be before the end time.",
+      "errorSave": "Something went wrong saving. Try again."
+    },
+    "blockedDates": {
+      "title": "Blocked dates",
+      "noteLabel": "Note (optional)",
+      "notePlaceholder": "E.g. personal reason",
+      "hint": "Click a free day to block it; click a blocked day to unblock it.",
+      "errorSave": "Something went wrong saving. Try again."
+    },
+    "incoming": {
+      "title": "Booking requests",
+      "empty": "No booking requests yet.",
+      "confirm": "Confirm",
+      "confirming": "Confirming…",
+      "confirmSuccess": "Booking confirmed.",
+      "errorConflict": "This date is already taken by another booking.",
+      "errorGeneric": "Something went wrong. Try again.",
+      "decline": "Decline",
+      "declineConfirmTitle": "Reason for declining",
+      "reasonPlaceholder": "Write a reason for declining…",
+      "reasonRequired": "Reason must be at least 3 characters.",
+      "declining": "Declining…",
+      "declineSubmit": "Send decline",
+      "declineSuccess": "Booking declined."
+    },
+    "request": {
+      "loginToBook": "Sign in to make a booking.",
+      "successTitle": "Request sent!",
+      "viewBookings": "View my bookings",
+      "serviceLabel": "Service",
+      "eventDateLabel": "Date",
+      "slotLabel": "Time",
+      "slotPlaceholder": "Choose an available time",
+      "noSlots": "No available times for this date.",
+      "phoneLabel": "Phone",
+      "messageLabel": "Message (optional)",
+      "errorConflict": "That time is no longer available — pick another.",
+      "errorSelfBooking": "You can't book your own listing.",
+      "errorGeneric": "Something went wrong sending your request. Try again.",
+      "sending": "Sending…",
+      "send": "Send request",
+      "sectionTitle": "Request a booking"
+    },
+    "list": {
+      "title": "My bookings",
+      "empty": "You have no bookings yet.",
+      "emptyHint": "Browse listings and make your first booking.",
+      "declineReasonLabel": "Reason for declining",
+      "cancel": "Cancel",
+      "cancelConfirmTitle": "Reason for cancelling",
+      "reasonPlaceholder": "Write a reason for cancelling…",
+      "keep": "Keep booking",
+      "cancelling": "Cancelling…",
+      "cancelSubmit": "Cancel booking",
+      "cancelSuccess": "Booking cancelled.",
+      "errorGeneric": "Something went wrong cancelling. Try again.",
+      "navLabel": "My bookings"
+    }
   }
 }
