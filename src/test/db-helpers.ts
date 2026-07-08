@@ -169,6 +169,45 @@ export async function createTestBooking(
   return row;
 }
 
+export async function createTestReview(
+  bookingId: string,
+  listingId: string,
+  authorId: string,
+  overrides?: {
+    ratingQuality?: number; ratingCommunication?: number; ratingProfessionalism?: number;
+    ratingValue?: number; ratingFlexibility?: number;
+    title?: string; body?: string; wouldRecommend?: boolean; eventDate?: string;
+    status?: "visible" | "hidden_by_admin" | "removed";
+    createdAt?: Date; editableUntil?: Date;
+  },
+) {
+  const ratingQuality = overrides?.ratingQuality ?? 5;
+  const ratingCommunication = overrides?.ratingCommunication ?? 5;
+  const ratingProfessionalism = overrides?.ratingProfessionalism ?? 5;
+  const ratingValue = overrides?.ratingValue ?? 5;
+  const ratingFlexibility = overrides?.ratingFlexibility ?? 5;
+  const ratingOverall = (
+    (ratingQuality + ratingCommunication + ratingProfessionalism + ratingValue + ratingFlexibility) / 5
+  ).toFixed(2);
+  const createdAt = overrides?.createdAt ?? new Date();
+  const [row] = await testDb
+    .insert(schema.review)
+    .values({
+      bookingId, listingId, authorId,
+      ratingQuality, ratingCommunication, ratingProfessionalism, ratingValue, ratingFlexibility, ratingOverall,
+      title: overrides?.title ?? "Тест Ревю",
+      body: overrides?.body ?? "Тестово съдържание на ревюто, достатъчно дълго за да мине валидацията.",
+      wouldRecommend: overrides?.wouldRecommend ?? true,
+      eventDate: overrides?.eventDate ?? "2026-01-01",
+      status: overrides?.status ?? "visible",
+      createdAt,
+      editableUntil: overrides?.editableUntil ?? new Date(createdAt.getTime() + 48 * 60 * 60 * 1000),
+    })
+    .returning();
+  if (!row) throw new Error("INSERT_FAILED");
+  return row;
+}
+
 export async function cleanupTestUser(userId: string) {
   // thread FK-тата (customerId/vendorId) са no-action → трий нишките първо (message каскадира от thread)
   await testDb.delete(schema.thread).where(
@@ -183,6 +222,23 @@ export async function cleanupTestUser(userId: string) {
     .from(schema.listing)
     .where(eq(schema.listing.ownerId, userId));
   await testDb.delete(schema.promotion).where(inArray(schema.promotion.listingId, ownListingIds));
+  // review/report/question FK-тата (bookingId/listingId/authorId/reporterId) са no-action → трий
+  // ПРЕДИ booking/listing/user (M3.2 §12). reviewImage каскадира от review (не е нужно явно).
+  const ownBookingIds = testDb
+    .select({ id: schema.booking.id })
+    .from(schema.booking)
+    .where(or(inArray(schema.booking.listingId, ownListingIds), eq(schema.booking.customerId, userId)));
+  await testDb.delete(schema.report).where(eq(schema.report.reporterId, userId));
+  await testDb.delete(schema.question).where(
+    or(eq(schema.question.authorId, userId), inArray(schema.question.listingId, ownListingIds)),
+  );
+  await testDb.delete(schema.review).where(
+    or(
+      eq(schema.review.authorId, userId),
+      inArray(schema.review.listingId, ownListingIds),
+      inArray(schema.review.bookingId, ownBookingIds),
+    ),
+  );
   // booking.listingId/serviceTypeId/customerId са no-action (без cascade) → трий ПРЕДИ listing/user.
   // bookingServiceType/availabilityRule/blockedDate каскадират сами при delete на listing по-долу.
   await testDb.delete(schema.booking).where(

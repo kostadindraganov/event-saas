@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
 import {
   cleanupTestUser, createTestAvailability, createTestBooking, createTestListing,
-  createTestServiceType, createTestUser, getTestCategoryId, getTestCityId, testDb,
+  createTestReview, createTestServiceType, createTestUser, getTestCategoryId, getTestCityId, testDb,
 } from "./db-helpers";
 import * as schema from "@/db/schema";
 
@@ -63,4 +63,27 @@ test("cleanupTestUser трие booking (по listingId и по customerId) пр�
   await cleanupTestUser(customerId);
   const [userGone] = await testDb.select().from(schema.user).where(eq(schema.user.id, customerId));
   expect(userGone).toBeUndefined();
+});
+
+test("createTestReview + cleanupTestUser: ревюто се вкарва и cleanup-ът го трие без FK грешка", async () => {
+  const owner = await createTestUser();
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const l = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+  const customer = await createTestUser();
+  const st = await createTestServiceType(l.id, { kind: "full_day" });
+  const b = await createTestBooking(l.id, st.id, customer.id, {
+    status: "completed", isFullDay: true, eventDate: "2026-01-01", phone: "0888000000",
+  });
+  const r = await createTestReview(b.id, l.id, customer.id);
+
+  const [before] = await testDb.select().from(schema.review).where(eq(schema.review.id, r.id));
+  expect(before).toBeDefined();
+  expect(Number(before?.ratingOverall)).toBeCloseTo(5, 2); // default overrides → всички 5-ци
+
+  await cleanupTestUser(customer.id);
+  await cleanupTestUser(owner.id);
+
+  const [after] = await testDb.select().from(schema.review).where(eq(schema.review.id, r.id));
+  expect(after).toBeUndefined();
 });
