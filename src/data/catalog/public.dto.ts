@@ -1,4 +1,5 @@
 import type { ServiceTypeDTO } from "@/data/booking/booking.dto";
+import type { ReviewPublicDTO } from "@/data/reviews/review.dto";
 
 export type PublicListingCardDTO = {
   id: string;
@@ -40,6 +41,7 @@ export type PublicListingDetailDTO = PublicListingCardDTO & {
   }[];
   vendorAvgResponseMinutes: number | null; // user.avgResponseMinutes на listing.ownerId; бадж при ≤1440
   serviceTypes: ServiceTypeDTO[]; // само isActive=true, за BookingRequestForm
+  reviews: ReviewPublicDTO[]; // visible ревюта, за секцията на страницата + JSON-LD Review[]
 };
 
 export type PublicListingFilterInput = {

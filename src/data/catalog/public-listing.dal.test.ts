@@ -1,6 +1,9 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestUser, cleanupTestUser, createTestSubscription, getTestCityId, testDb } from "@/test/db-helpers";
+import {
+  createTestUser, cleanupTestUser, createTestSubscription, getTestCityId, testDb,
+  createTestServiceType, createTestBooking, createTestReview,
+} from "@/test/db-helpers";
 import * as schema from "@/db/schema";
 import { ListingDAL } from "./listing.dal";
 import { PackageDAL, VideoDAL } from "./package.dal";
@@ -9,7 +12,7 @@ import type { SessionUser } from "@/data/users/require-user";
 
 let owner: SessionUser;
 let ownerId: string, categoryId: string, cityId: string;
-let publishedSlug: string, draftSlug: string, hiddenSlug: string;
+let publishedSlug: string, publishedListingId: string, draftSlug: string, hiddenSlug: string;
 let styleDefId: string;
 
 beforeAll(async () => {
@@ -25,6 +28,7 @@ beforeAll(async () => {
 
   const l = await dal.createDraft({ title: "Публична Фото Обява", categoryId, cityId });
   publishedSlug = l.slug;
+  publishedListingId = l.id;
   await dal.update({ id: l.id, description: "Пълно описание на услугата.", wholeCountry: true });
   await PackageDAL.for(owner).create({ listingId: l.id, name: "Базов", priceFromCents: 50000, duration: "8 часа", included: "Обработка" });
   await VideoDAL.for(owner).add(l.id, "https://youtu.be/dQw4w9WgXcQ");
@@ -74,4 +78,19 @@ test("getBySlug: draft и hidden връщат null", async () => {
 
 test("getBySlug: несъществуващ slug връща null", async () => {
   expect(await ListingDAL.public().getBySlug("nyama-takava-obiava")).toBeNull();
+});
+
+test("getBySlug: включва visible ревюта в детайла (за JSON-LD и ReviewsSection)", async () => {
+  const customer = await createTestUser();
+  const st = await createTestServiceType(publishedListingId, { kind: "full_day" });
+  const b = await createTestBooking(publishedListingId, st.id, customer.id, {
+    status: "completed", isFullDay: true, eventDate: "2020-01-01", phone: "0888000000",
+  });
+  await createTestReview(b.id, publishedListingId, customer.id, { title: "Страхотно преживяване" });
+
+  const dto = await ListingDAL.public().getBySlug(publishedSlug);
+  expect(dto!.reviews.length).toBe(1);
+  expect(dto!.reviews[0]!.title).toBe("Страхотно преживяване");
+
+  await cleanupTestUser(customer.id);
 });

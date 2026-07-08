@@ -65,6 +65,21 @@ export default async function ListingPage({
     ...(coverImage ? { image: coverImage } : {}),
     ...(listing.cityName ? { address: { "@type": "PostalAddress", addressLocality: listing.cityName } } : {}),
     ...(listing.priceFromCents != null ? { priceRange: formatEuro(listing.priceFromCents) } : {}),
+    ...(listing.reviewCount > 0 && listing.ratingAvg !== null
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: listing.ratingAvg,
+            reviewCount: listing.reviewCount,
+          },
+          review: listing.reviews.map((r) => ({
+            "@type": "Review",
+            author: { "@type": "Person", name: r.authorName },
+            reviewRating: { "@type": "Rating", ratingValue: r.ratingOverall, bestRating: 5, worstRating: 1 },
+            reviewBody: r.body,
+          })),
+        }
+      : {}),
   };
 
   return (
