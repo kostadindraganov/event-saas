@@ -64,6 +64,26 @@ export class QaDAL {
       .where(eq(question.id, input.questionId));
   }
 
+  // vendor панел: въпроси по ВСИЧКИ обяви на owner-а (за answer UI, D9). protected; JOIN listing.ownerId.
+  async listForOwner(): Promise<(QuestionPublicDTO & { listingTitle: string })[]> {
+    if (!this.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+    return db
+      .select({
+        id: question.id,
+        authorName: user.name,
+        body: question.body,
+        answerText: question.answerText,
+        answeredAt: question.answeredAt,
+        createdAt: question.createdAt,
+        listingTitle: listing.title,
+      })
+      .from(question)
+      .innerJoin(user, eq(question.authorId, user.id))
+      .innerJoin(listing, eq(listing.id, question.listingId))
+      .where(and(eq(listing.ownerId, this.user.id), eq(question.status, "visible")))
+      .orderBy(desc(question.createdAt));
+  }
+
   // public(); visible само; desc createdAt
   async listByListing(listingId: string): Promise<QuestionPublicDTO[]> {
     return db

@@ -31,6 +31,12 @@ export type ReviewPublicDTO = {
 // авторов изглед (за да знае дали още може да редактира)
 export type MyReviewDTO = ReviewPublicDTO & { editableUntil: Date; canEdit: boolean };
 
+// vendor панел: ревю по обява на owner-а + статус (за да маркира скрито от admin)
+export type VendorReviewDTO = ReviewPublicDTO & {
+  listingTitle: string;
+  status: "visible" | "hidden_by_admin";
+};
+
 export const ReviewCreateSchema = z.object({
   bookingId: z.uuid(),
   ratingQuality: rating,

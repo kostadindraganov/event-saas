@@ -8,6 +8,7 @@ import type { SessionUser } from "@/data/users/require-user";
 import { recomputeListingRating } from "./aggregate";
 import type {
   ReviewCreateInput, ReviewEditInput, ReviewImageDTO, ReviewPublicDTO, ReviewReplyInput,
+  MyReviewDTO, VendorReviewDTO,
 } from "./review.dto";
 
 const EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
@@ -25,6 +26,49 @@ function ratingOverallOf(input: {
   const sum = input.ratingQuality + input.ratingCommunication + input.ratingProfessionalism
     + input.ratingValue + input.ratingFlexibility;
   return (sum / 5).toFixed(2);
+}
+
+// споделени select колони за ReviewPublicDTO (без images) — listByListing/listForOwner/mine ги ползват
+// през toPublicDTO(), за да не дублират mapping-а на три места.
+const reviewSelectColumns = {
+  id: review.id, authorName: user.name, ratingOverall: review.ratingOverall,
+  ratingQuality: review.ratingQuality, ratingCommunication: review.ratingCommunication,
+  ratingProfessionalism: review.ratingProfessionalism, ratingValue: review.ratingValue,
+  ratingFlexibility: review.ratingFlexibility, title: review.title, body: review.body,
+  wouldRecommend: review.wouldRecommend, eventDate: review.eventDate,
+  replyText: review.replyText, replyUpdatedAt: review.replyUpdatedAt, createdAt: review.createdAt,
+};
+
+type ReviewRow = {
+  id: string; authorName: string; ratingOverall: string;
+  ratingQuality: number; ratingCommunication: number; ratingProfessionalism: number;
+  ratingValue: number; ratingFlexibility: number; title: string; body: string;
+  wouldRecommend: boolean; eventDate: string; replyText: string | null;
+  replyUpdatedAt: Date | null; createdAt: Date;
+};
+
+function toPublicDTO(r: ReviewRow, images: ReviewImageDTO[]): ReviewPublicDTO {
+  return {
+    id: r.id, authorName: r.authorName, ratingOverall: Number(r.ratingOverall),
+    ratingQuality: r.ratingQuality, ratingCommunication: r.ratingCommunication,
+    ratingProfessionalism: r.ratingProfessionalism, ratingValue: r.ratingValue, ratingFlexibility: r.ratingFlexibility,
+    title: r.title, body: r.body, wouldRecommend: r.wouldRecommend, eventDate: r.eventDate,
+    replyText: r.replyText, replyUpdatedAt: r.replyUpdatedAt, images, createdAt: r.createdAt,
+  };
+}
+
+// batch image fetch, споделено между listByListing/listForOwner/mine.
+async function imagesForIds(reviewIds: string[]): Promise<Map<string, ReviewImageDTO[]>> {
+  const map = new Map<string, ReviewImageDTO[]>();
+  if (reviewIds.length === 0) return map;
+  const imageRows = await db.select({ id: reviewImage.id, reviewId: reviewImage.reviewId, cfImageId: reviewImage.cfImageId })
+    .from(reviewImage).where(inArray(reviewImage.reviewId, reviewIds));
+  for (const img of imageRows) {
+    const list = map.get(img.reviewId) ?? [];
+    list.push({ id: img.id, cfImageId: img.cfImageId });
+    map.set(img.reviewId, list);
+  }
+  return map;
 }
 
 export class ReviewDAL {
@@ -131,37 +175,48 @@ export class ReviewDAL {
   // PUBLIC read за obiava страницата (visible само, с images). Вика се от ReviewDAL.public() в
   // getBySlug batch-а (decision A). Не изисква this.user — работи еднакво за for()/public().
   async listByListing(listingId: string): Promise<ReviewPublicDTO[]> {
-    const rows = await db.select({
-      id: review.id, authorName: user.name, ratingOverall: review.ratingOverall,
-      ratingQuality: review.ratingQuality, ratingCommunication: review.ratingCommunication,
-      ratingProfessionalism: review.ratingProfessionalism, ratingValue: review.ratingValue,
-      ratingFlexibility: review.ratingFlexibility, title: review.title, body: review.body,
-      wouldRecommend: review.wouldRecommend, eventDate: review.eventDate,
-      replyText: review.replyText, replyUpdatedAt: review.replyUpdatedAt, createdAt: review.createdAt,
-    }).from(review)
+    const rows = await db.select(reviewSelectColumns)
+      .from(review)
       .innerJoin(user, eq(review.authorId, user.id))
       .where(and(eq(review.listingId, listingId), eq(review.status, "visible")))
       .orderBy(desc(review.createdAt));
     if (rows.length === 0) return [];
 
-    const reviewIds = rows.map((r) => r.id);
-    const imageRows = await db.select({ id: reviewImage.id, reviewId: reviewImage.reviewId, cfImageId: reviewImage.cfImageId })
-      .from(reviewImage).where(inArray(reviewImage.reviewId, reviewIds));
-    const imagesByReview = new Map<string, ReviewImageDTO[]>();
-    for (const img of imageRows) {
-      const list = imagesByReview.get(img.reviewId) ?? [];
-      list.push({ id: img.id, cfImageId: img.cfImageId });
-      imagesByReview.set(img.reviewId, list);
-    }
+    const imagesByReview = await imagesForIds(rows.map((r) => r.id));
+    return rows.map((r) => toPublicDTO(r, imagesByReview.get(r.id) ?? []));
+  }
 
+  // vendor панел: ревюта по ВСИЧКИ обяви на owner-а (за reply UI, D9). removed се изключва —
+  // премахнатите ревюта не се reply-ват. protected; JOIN listing.ownerId===user.id.
+  async listForOwner(): Promise<VendorReviewDTO[]> {
+    const authUser = this.requireUser();
+    const rows = await db.select({ ...reviewSelectColumns, listingTitle: listing.title, status: review.status })
+      .from(review)
+      .innerJoin(user, eq(review.authorId, user.id))
+      .innerJoin(listing, eq(listing.id, review.listingId))
+      .where(and(eq(listing.ownerId, authUser.id), inArray(review.status, ["visible", "hidden_by_admin"])))
+      .orderBy(desc(review.createdAt));
+    if (rows.length === 0) return [];
+
+    const imagesByReview = await imagesForIds(rows.map((r) => r.id));
     return rows.map((r) => ({
-      id: r.id, authorName: r.authorName, ratingOverall: Number(r.ratingOverall),
-      ratingQuality: r.ratingQuality, ratingCommunication: r.ratingCommunication,
-      ratingProfessionalism: r.ratingProfessionalism, ratingValue: r.ratingValue, ratingFlexibility: r.ratingFlexibility,
-      title: r.title, body: r.body, wouldRecommend: r.wouldRecommend, eventDate: r.eventDate,
-      replyText: r.replyText, replyUpdatedAt: r.replyUpdatedAt,
-      images: imagesByReview.get(r.id) ?? [], createdAt: r.createdAt,
+      ...toPublicDTO(r, imagesByReview.get(r.id) ?? []),
+      listingTitle: r.listingTitle,
+      status: r.status as "visible" | "hidden_by_admin",
     }));
+  }
+
+  // авторово ревю за конкретен booking (за self-edit UI, D11). null ако няма ревю ЗА ТОЗИ user
+  // (чужд ресурс → null, без enumeration — огледално на другите guard-ове в този файл).
+  async mine(bookingId: string): Promise<MyReviewDTO | null> {
+    const authUser = this.requireUser();
+    const [row] = await db.select({ ...reviewSelectColumns, editableUntil: review.editableUntil })
+      .from(review)
+      .innerJoin(user, eq(review.authorId, user.id))
+      .where(and(eq(review.bookingId, bookingId), eq(review.authorId, authUser.id)));
+    if (!row) return null;
+    const images = (await imagesForIds([row.id])).get(row.id) ?? [];
+    return { ...toPublicDTO(row, images), editableUntil: row.editableUntil, canEdit: new Date() < row.editableUntil };
   }
 
   // D7 cron: booking status='completed' И eventDate==targetDate И без ревю → напомняне. Static —

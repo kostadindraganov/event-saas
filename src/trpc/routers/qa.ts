@@ -8,4 +8,5 @@ export const qaRouter = createTRPCRouter({
   listByListing: publicProcedure
     .input(z.object({ listingId: z.uuid() }))
     .query(({ input }) => QaDAL.public().listByListing(input.listingId)),
+  listForOwner: protectedProcedure.query(({ ctx }) => QaDAL.for(ctx.user).listForOwner()),
 });

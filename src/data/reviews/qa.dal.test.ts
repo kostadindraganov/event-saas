@@ -74,3 +74,20 @@ test("answer: admin (не owner) също може да отговори", async
   const listed = await QaDAL.public().listByListing(listingId);
   expect(listed.find((r) => r.id === q.id)?.answerText).toBe("Да, стандартен договор.");
 });
+
+test("listForOwner: owner вижда своите въпроси (вкл. неотговорени) с listingTitle; чужд не", async () => {
+  const { user, listingId } = await ownerWithListing();
+  const asker = await createTestUser();
+  cleanupIds.push(asker.id);
+  const askerUser: SessionUser = { id: asker.id, email: asker.email, name: "Питащ", isAdmin: false };
+  const q = await QaDAL.for(askerUser).ask({ listingId, body: "Работите ли през декември?" });
+
+  const mine = await QaDAL.for(user).listForOwner();
+  const row = mine.find((r) => r.id === q.id);
+  expect(row?.listingTitle.length).toBeGreaterThan(0);
+  expect(row?.answerText).toBeNull();
+
+  const { user: stranger } = await ownerWithListing();
+  const theirs = await QaDAL.for(stranger).listForOwner();
+  expect(theirs.some((r) => r.id === q.id)).toBe(false);
+});

@@ -14,4 +14,5 @@ export const reviewRouter = createTRPCRouter({
   confirmUpload: protectedProcedure
     .input(z.object({ reviewId: z.uuid(), cfImageId: z.string().min(1).max(128) }))
     .mutation(({ ctx, input }) => ReviewMediaDAL.for(ctx.user).confirm(input.reviewId, input.cfImageId)),
+  listForOwner: protectedProcedure.query(({ ctx }) => ReviewDAL.for(ctx.user).listForOwner()),
 });

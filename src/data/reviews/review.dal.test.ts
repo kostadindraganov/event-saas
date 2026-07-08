@@ -301,3 +301,53 @@ test("findReminderTargets(): completed резервация без ревю на
   const target = targets.find((t) => t.bookingId === withoutReview);
   expect(target?.email).toBe(customer.email);
 });
+
+test("listForOwner: само ревюта по обявите на owner-а, с listingTitle; removed се изключва; чужд owner не вижда", async () => {
+  const { owner, listingId } = await newOwner();
+  const customer = await newCustomer();
+  const b1 = await bookingFor(listingId, customer.id);
+  const r = await createTestReview(b1, listingId, customer.id, { title: "Отлично", status: "visible" });
+  const b2 = await bookingFor(listingId, customer.id, { eventDate: "2026-01-02" });
+  const rHidden = await createTestReview(b2, listingId, customer.id, { title: "Скрито", status: "hidden_by_admin" });
+  const b3 = await bookingFor(listingId, customer.id, { eventDate: "2026-01-03" });
+  await createTestReview(b3, listingId, customer.id, { title: "Премахнато", status: "removed" });
+
+  const mine = await ReviewDAL.for(asSessionUser(owner)).listForOwner();
+  const ids = mine.map((x) => x.id);
+  expect(ids).toContain(r.id);
+  expect(ids).toContain(rHidden.id);
+  expect(mine.some((x) => x.title === "Премахнато")).toBe(false); // removed изключено
+  expect(mine.find((x) => x.id === rHidden.id)?.status).toBe("hidden_by_admin");
+  expect(mine.every((x) => x.listingTitle.length > 0)).toBe(true);
+
+  const { owner: stranger } = await newOwner();
+  const theirs = await ReviewDAL.for(asSessionUser(stranger)).listForOwner();
+  expect(theirs.some((x) => x.id === r.id)).toBe(false);
+});
+
+test("mine(bookingId): авторът вижда своето ревю с canEdit; чужд user → null; несъществуващ booking → null", async () => {
+  const { listingId } = await newOwner();
+  const customer = await newCustomer();
+  const stranger = await newCustomer();
+  const bookingId = await bookingFor(listingId, customer.id);
+  const created = await ReviewDAL.for(asSessionUser(customer)).create(reviewInput(bookingId));
+
+  const mine = await ReviewDAL.for(asSessionUser(customer)).mine(bookingId);
+  expect(mine?.id).toBe(created.id);
+  expect(mine?.canEdit).toBe(true);
+
+  expect(await ReviewDAL.for(asSessionUser(stranger)).mine(bookingId)).toBeNull();
+  expect(await ReviewDAL.for(asSessionUser(customer)).mine("00000000-0000-0000-0000-000000000000")).toBeNull();
+});
+
+test("mine(bookingId): извън 48ч прозореца → canEdit=false, но ревюто пак се връща", async () => {
+  const { listingId } = await newOwner();
+  const customer = await newCustomer();
+  const bookingId = await bookingFor(listingId, customer.id);
+  const past = new Date(Date.now() - 60 * 60 * 1000);
+  await createTestReview(bookingId, listingId, customer.id, { editableUntil: past });
+
+  const mine = await ReviewDAL.for(asSessionUser(customer)).mine(bookingId);
+  expect(mine).not.toBeNull();
+  expect(mine?.canEdit).toBe(false);
+});
