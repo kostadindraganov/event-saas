@@ -1,7 +1,8 @@
 import { expect, test, vi } from "vitest";
 import {
   bookingCancelledEmail, bookingConfirmedEmail, bookingDeclinedEmail, bookingRequestedEmail,
-  listingApprovedEmail, listingRejectedEmail, listingsHiddenEmail, newMessageEmail, sendEmail, subscriptionPastDueEmail,
+  listingApprovedEmail, listingRejectedEmail, listingsHiddenEmail, newMessageEmail, reviewReminderEmail,
+  sendEmail, subscriptionPastDueEmail,
 } from "./email";
 
 test("newMessageEmail: subject + html съдържат обява/тяло/получател/URL", () => {
@@ -111,4 +112,23 @@ test("bookingCancelledEmail: escape-ва reason и показва коя стр�
   expect(subject).toContain("отменена");
   expect(html).not.toContain("<b>болест</b>");
   expect(html).toContain("клиента");
+});
+
+test("reviewReminderEmail: subject + html съдържат обявата и линка", () => {
+  const { subject, html } = reviewReminderEmail({
+    listingTitle: "Фото Студио",
+    reviewUrl: "https://example.com/profil/rezervacii",
+  });
+  expect(subject).toContain("Фото Студио");
+  expect(html).toContain("Фото Студио");
+  expect(html).toContain("https://example.com/profil/rezervacii");
+});
+
+test("reviewReminderEmail: escape-ва HTML в заглавието на обявата", () => {
+  const { html } = reviewReminderEmail({
+    listingTitle: "<script>x</script>",
+    reviewUrl: "https://example.com/profil/rezervacii",
+  });
+  expect(html).not.toContain("<script>");
+  expect(html).toContain("&lt;script&gt;");
 });

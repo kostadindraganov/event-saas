@@ -125,6 +125,16 @@ export function bookingDeclinedEmail(input: {
   return { subject, html };
 }
 
+export function reviewReminderEmail(input: { listingTitle: string; reviewUrl: string }): { subject: string; html: string } {
+  const subject = `Как мина събитието с „${input.listingTitle}"?`;
+  const html = `<div style="font-family:sans-serif;line-height:1.5;color:#111">
+  <p>Здравейте,</p>
+  <p>Дано събитието с <strong>${escapeHtml(input.listingTitle)}</strong> е минало чудесно! Ще ни помогнете ли, като споделите ревю за изживяването си?</p>
+  <p><a href="${input.reviewUrl}">Напишете ревю</a></p>
+</div>`;
+  return { subject, html };
+}
+
 export function bookingCancelledEmail(input: {
   recipientName: string; listingTitle: string; eventDate: string; reason: string;
   cancelledBy: "customer" | "vendor"; bookingUrl: string;
