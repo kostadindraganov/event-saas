@@ -110,6 +110,23 @@
       "packagesCount": "{count} packages",
       "yes": "Yes",
       "no": "No"
+    },
+    "reviewsPanel": {
+      "pageTitle": "Reviews & questions",
+      "reviewsSectionTitle": "Reviews",
+      "questionsTitle": "Unanswered questions",
+      "emptyReviews": "No reviews yet for your listings.",
+      "emptyQuestions": "No unanswered questions.",
+      "replyLabel": "Edit reply",
+      "replyPlaceholder": "Write a public reply to the review…",
+      "replySubmit": "Publish reply",
+      "replySubmitting": "Publishing…",
+      "replySuccess": "Reply published.",
+      "answerPlaceholder": "Write an answer to the question…",
+      "answerSubmit": "Publish answer",
+      "answerSubmitting": "Publishing…",
+      "answerSuccess": "Answer published.",
+      "errorGeneric": "Error. Please try again."
     }
   },
   "Catalog": {
@@ -194,7 +211,8 @@
     "nav": {
       "listings": "Listings",
       "subscription": "Subscription",
-      "promotion": "Promotion"
+      "promotion": "Promotion",
+      "reviews": "Reviews"
     },
     "plans": {
       "standard": {
@@ -266,7 +284,8 @@
       "pending": "Listings",
       "users": "Users",
       "taxonomy": "Taxonomy",
-      "settings": "Settings"
+      "settings": "Settings",
+      "reports": "Reports"
     },
     "dashboard": {
       "title": "Admin dashboard",
@@ -416,6 +435,33 @@
       "errorGeneric": "Error. Please try again.",
       "emptyRegions": "No regions.",
       "emptyCities": "Select a region to see its cities."
+    },
+    "reports": {
+      "title": "Reports queue",
+      "empty": "No open reports.",
+      "columnType": "Type",
+      "columnContent": "Content",
+      "columnReason": "Reason",
+      "columnReporter": "Reporter",
+      "columnCreated": "Date",
+      "typeReview": "Review",
+      "typeQuestion": "Question",
+      "typeListing": "Listing",
+      "hide": "Hide",
+      "remove": "Remove",
+      "dismiss": "Dismiss",
+      "dismissing": "Dismissing…",
+      "hideConfirmTitle": "Hide content",
+      "hideConfirmBody": "The content will be hidden from the public view.",
+      "removeConfirmTitle": "Remove content",
+      "removeConfirmBody": "The content will be permanently removed.",
+      "cancel": "Cancel",
+      "resolutionPlaceholder": "Note (optional)…",
+      "deletedContent": "This content no longer exists.",
+      "hideSuccess": "Content hidden.",
+      "removeSuccess": "Content removed.",
+      "dismissSuccess": "Report dismissed.",
+      "errorGeneric": "Error. Please try again."
     }
   },
   "Booking": {
@@ -535,5 +581,60 @@
       "errorGeneric": "Something went wrong cancelling. Try again.",
       "navLabel": "My bookings"
     }
+  },
+  "Review": {
+    "sectionTitle": "Reviews",
+    "empty": "No reviews yet for this listing.",
+    "wouldRecommend": "Recommends",
+    "vendorReplyLabel": "Reply from the vendor",
+    "form": {
+      "cta": "Write a review",
+      "title": "Write a review",
+      "rating": {
+        "quality": "Quality",
+        "communication": "Communication",
+        "professionalism": "Professionalism",
+        "value": "Value for money",
+        "flexibility": "Flexibility"
+      },
+      "titleLabel": "Title",
+      "titlePlaceholder": "Summarize your experience…",
+      "titleTooShort": "The title must be at least 3 characters.",
+      "bodyLabel": "Review",
+      "bodyPlaceholder": "Tell us more about your experience…",
+      "bodyTooShort": "The review must be at least 10 characters.",
+      "wouldRecommendLabel": "I would recommend this vendor",
+      "addImages": "Add photos",
+      "cfMissing": "The photos could not be uploaded. The review was published without them.",
+      "submit": "Publish review",
+      "submitting": "Publishing…",
+      "successToast": "Review published.",
+      "errorAlreadyReviewed": "You have already reviewed this booking.",
+      "errorNotCompleted": "You can only review a completed booking.",
+      "errorGeneric": "Something went wrong publishing the review. Try again."
+    }
+  },
+  "Qa": {
+    "sectionTitle": "Questions & answers",
+    "empty": "No questions yet.",
+    "askPlaceholder": "Ask the vendor a question…",
+    "bodyTooShort": "The question must be at least 5 characters.",
+    "ask": "Send question",
+    "asking": "Sending…",
+    "askSuccess": "Question sent.",
+    "errorGeneric": "Something went wrong. Try again.",
+    "loginToAsk": "Log in to ask a question.",
+    "answerLabel": "Answer",
+    "unanswered": "No answer yet."
+  },
+  "Report": {
+    "button": "Report",
+    "dialogTitle": "Report content",
+    "reasonPlaceholder": "Describe why you're reporting this content…",
+    "reasonTooShort": "The reason must be at least 3 characters.",
+    "submit": "Send report",
+    "submitting": "Sending…",
+    "successToast": "Report sent.",
+    "errorGeneric": "Something went wrong sending the report. Try again."
   }
 }

@@ -110,6 +110,23 @@
       "packagesCount": "{count} пакета",
       "yes": "Да",
       "no": "Не"
+    },
+    "reviewsPanel": {
+      "pageTitle": "Ревюта и въпроси",
+      "reviewsSectionTitle": "Ревюта",
+      "questionsTitle": "Неотговорени въпроси",
+      "emptyReviews": "Все още няма ревюта за твоите обяви.",
+      "emptyQuestions": "Няма неотговорени въпроси.",
+      "replyLabel": "Редактирай отговора",
+      "replyPlaceholder": "Напиши публичен отговор на ревюто…",
+      "replySubmit": "Публикувай отговора",
+      "replySubmitting": "Публикуване…",
+      "replySuccess": "Отговорът е публикуван.",
+      "answerPlaceholder": "Напиши отговор на въпроса…",
+      "answerSubmit": "Публикувай отговора",
+      "answerSubmitting": "Публикуване…",
+      "answerSuccess": "Отговорът е публикуван.",
+      "errorGeneric": "Грешка. Опитай пак."
     }
   },
   "Catalog": {
@@ -194,7 +211,8 @@
     "nav": {
       "listings": "Обяви",
       "subscription": "Абонамент",
-      "promotion": "Промотиране"
+      "promotion": "Промотиране",
+      "reviews": "Ревюта"
     },
     "plans": {
       "standard": {
@@ -266,7 +284,8 @@
       "pending": "Обяви",
       "users": "Потребители",
       "taxonomy": "Таксономия",
-      "settings": "Настройки"
+      "settings": "Настройки",
+      "reports": "Сигнали"
     },
     "dashboard": {
       "title": "Административно табло",
@@ -416,6 +435,33 @@
       "errorGeneric": "Грешка. Опитай пак.",
       "emptyRegions": "Няма области.",
       "emptyCities": "Изберете област, за да видите градовете ѝ."
+    },
+    "reports": {
+      "title": "Опашка сигнали",
+      "empty": "Няма отворени сигнали.",
+      "columnType": "Тип",
+      "columnContent": "Съдържание",
+      "columnReason": "Причина",
+      "columnReporter": "Докладвал",
+      "columnCreated": "Дата",
+      "typeReview": "Ревю",
+      "typeQuestion": "Въпрос",
+      "typeListing": "Обява",
+      "hide": "Скрий",
+      "remove": "Премахни",
+      "dismiss": "Отхвърли",
+      "dismissing": "Отхвърляне…",
+      "hideConfirmTitle": "Скриване на съдържанието",
+      "hideConfirmBody": "Съдържанието ще бъде скрито от публичния изглед.",
+      "removeConfirmTitle": "Премахване на съдържанието",
+      "removeConfirmBody": "Съдържанието ще бъде премахнато безвъзвратно.",
+      "cancel": "Отказ",
+      "resolutionPlaceholder": "Бележка (по избор)…",
+      "deletedContent": "Съдържанието вече не съществува.",
+      "hideSuccess": "Съдържанието е скрито.",
+      "removeSuccess": "Съдържанието е премахнато.",
+      "dismissSuccess": "Сигналът е отхвърлен.",
+      "errorGeneric": "Грешка. Опитай пак."
     }
   },
   "Booking": {
@@ -535,5 +581,60 @@
       "errorGeneric": "Грешка при отмяната. Опитай пак.",
       "navLabel": "Моите резервации"
     }
+  },
+  "Review": {
+    "sectionTitle": "Ревюта",
+    "empty": "Все още няма ревюта за тази обява.",
+    "wouldRecommend": "Препоръчва",
+    "vendorReplyLabel": "Отговор от доставчика",
+    "form": {
+      "cta": "Напиши ревю",
+      "title": "Напиши ревю",
+      "rating": {
+        "quality": "Качество",
+        "communication": "Комуникация",
+        "professionalism": "Професионализъм",
+        "value": "Съотношение цена/качество",
+        "flexibility": "Гъвкавост"
+      },
+      "titleLabel": "Заглавие",
+      "titlePlaceholder": "Обобщи впечатлението си накратко…",
+      "titleTooShort": "Заглавието трябва да е поне 3 символа.",
+      "bodyLabel": "Отзив",
+      "bodyPlaceholder": "Разкажи повече за преживяването си…",
+      "bodyTooShort": "Отзивът трябва да е поне 10 символа.",
+      "wouldRecommendLabel": "Бих препоръчал/а този доставчик",
+      "addImages": "Добави снимки",
+      "cfMissing": "Снимките не успяха да се качат. Ревюто е публикувано без тях.",
+      "submit": "Публикувай ревю",
+      "submitting": "Публикуване…",
+      "successToast": "Ревюто е публикувано.",
+      "errorAlreadyReviewed": "Вече си оставил/а ревю за тази резервация.",
+      "errorNotCompleted": "Може да оставиш ревю само след приключена резервация.",
+      "errorGeneric": "Грешка при публикуването. Опитай пак."
+    }
+  },
+  "Qa": {
+    "sectionTitle": "Въпроси и отговори",
+    "empty": "Все още няма въпроси.",
+    "askPlaceholder": "Задай въпрос на доставчика…",
+    "bodyTooShort": "Въпросът трябва да е поне 5 символа.",
+    "ask": "Изпрати въпрос",
+    "asking": "Изпращане…",
+    "askSuccess": "Въпросът е изпратен.",
+    "errorGeneric": "Грешка. Опитай пак.",
+    "loginToAsk": "Влез в профила си, за да зададеш въпрос.",
+    "answerLabel": "Отговор",
+    "unanswered": "Все още няма отговор."
+  },
+  "Report": {
+    "button": "Докладвай",
+    "dialogTitle": "Докладвай съдържание",
+    "reasonPlaceholder": "Опиши защо докладваш това съдържание…",
+    "reasonTooShort": "Причината трябва да е поне 3 символа.",
+    "submit": "Изпрати доклад",
+    "submitting": "Изпращане…",
+    "successToast": "Докладът е изпратен.",
+    "errorGeneric": "Грешка при изпращането. Опитай пак."
   }
 }
