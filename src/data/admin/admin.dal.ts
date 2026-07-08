@@ -1,4 +1,5 @@
 import "server-only";
+import { revalidateTag } from "next/cache";
 import { and, asc, count, desc, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
@@ -462,5 +463,42 @@ export class AdminDAL {
         targetListingSlug: t?.slug ?? null,
       };
     });
+  }
+
+  // resolve в tx: по targetType приложи action, после report.status='resolved'. dismiss → target
+  // без промяна. Заключеният интерфейс (interfaces.md §7) връща void → за разлика от
+  // listing.approve/reject/remove (които връщат {slug,status} за router-a да revalidate-не), тук
+  // revalidate се прави ВЪТРЕ в метода, след commit на tx-a.
+  static async resolveReport(input: ReportResolveInput): Promise<void> {
+    let affectedSlug: string | null = null;
+
+    await db.transaction(async (tx) => {
+      const [rpt] = await tx.select().from(report).where(eq(report.id, input.id));
+      if (!rpt) throw new TRPCError({ code: "NOT_FOUND" });
+      if (rpt.status !== "open") throw new TRPCError({ code: "CONFLICT", message: "ALREADY_RESOLVED" });
+
+      if (input.action !== "dismiss") {
+        if (rpt.targetType === "review") {
+          const [rev] = await tx.select({ listingId: review.listingId }).from(review).where(eq(review.id, rpt.targetId));
+          if (rev) {
+            await tx.update(review)
+              .set({ status: input.action === "hide" ? "hidden_by_admin" : "removed" })
+              .where(eq(review.id, rpt.targetId));
+            await recomputeListingRating(tx, rev.listingId);
+            const [l] = await tx.select({ slug: listing.slug }).from(listing).where(eq(listing.id, rev.listingId));
+            affectedSlug = l?.slug ?? null;
+          }
+        }
+      }
+
+      await tx.update(report)
+        .set({ status: "resolved", resolution: input.resolution ?? null })
+        .where(eq(report.id, input.id));
+    });
+
+    if (affectedSlug) {
+      revalidateTag(`listing:${affectedSlug}`, { expire: 0 });
+      revalidateTag("listings", { expire: 0 });
+    }
   }
 }

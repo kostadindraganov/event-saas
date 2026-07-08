@@ -67,3 +67,70 @@ test("listReports: open само; JOIN reporter email; targetExcerpt/targetListi
 
   await testDb.delete(schema.report).where(eq(schema.report.id, rpt!.id));
 });
+
+test("resolveReport: action=dismiss → report.status=resolved, target без промяна", async () => {
+  const owner = await createTestUser();
+  cleanupIds.push(owner.id);
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const listingRow = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+
+  const reporter = await createTestUser();
+  cleanupIds.push(reporter.id);
+  const [rpt] = await testDb.insert(schema.report).values({
+    targetType: "listing", targetId: listingRow.id, reporterId: reporter.id, reason: "Съмнение",
+  }).returning();
+
+  await AdminDAL.resolveReport({ id: rpt!.id, action: "dismiss", resolution: "Проверено, няма нарушение" });
+
+  const [listingAfter] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, listingRow.id));
+  expect(listingAfter?.status).toBe("published");
+
+  const [reportAfter] = await testDb.select().from(schema.report).where(eq(schema.report.id, rpt!.id));
+  expect(reportAfter?.status).toBe("resolved");
+  expect(reportAfter?.resolution).toBe("Проверено, няма нарушение");
+
+  await testDb.delete(schema.report).where(eq(schema.report.id, rpt!.id));
+});
+
+test("resolveReport: review target action=hide → review.status=hidden_by_admin, recompute вади го от listing агрегатите", async () => {
+  const owner = await createTestUser();
+  cleanupIds.push(owner.id);
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const listingRow = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+
+  const customer = await createTestUser();
+  cleanupIds.push(customer.id);
+  const st = await createTestServiceType(listingRow.id, { kind: "full_day" });
+  const booking = await createTestBooking(listingRow.id, st.id, customer.id, {
+    status: "completed", isFullDay: true, eventDate: "2099-01-01", phone: "0888123123",
+  });
+  const rev = await insertTestReview({ listingId: listingRow.id, authorId: customer.id, bookingId: booking.id });
+
+  // симулира вече кеширан агрегат (сякаш това ревю вече е било преизчислено веднъж) — resolveReport
+  // трябва да го извади при hide
+  await testDb.update(schema.listing).set({ reviewCount: 1, ratingAvg: "5.00" }).where(eq(schema.listing.id, listingRow.id));
+
+  const reporter = await createTestUser();
+  cleanupIds.push(reporter.id);
+  const [rpt] = await testDb.insert(schema.report).values({
+    targetType: "review", targetId: rev.id, reporterId: reporter.id, reason: "Фалшиво ревю",
+  }).returning();
+
+  await AdminDAL.resolveReport({ id: rpt!.id, action: "hide" });
+
+  const [revRow] = await testDb.select().from(schema.review).where(eq(schema.review.id, rev.id));
+  expect(revRow?.status).toBe("hidden_by_admin");
+
+  const [listingAfter] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, listingRow.id));
+  expect(listingAfter?.reviewCount).toBe(0);
+  expect(listingAfter?.ratingAvg).toBeNull();
+
+  const [reportAfter] = await testDb.select().from(schema.report).where(eq(schema.report.id, rpt!.id));
+  expect(reportAfter?.status).toBe("resolved");
+
+  // review references booking/listing/user без cascade — трий преди cleanupTestUser
+  await testDb.delete(schema.report).where(eq(schema.report.id, rpt!.id));
+  await testDb.delete(schema.review).where(eq(schema.review.id, rev.id));
+});
