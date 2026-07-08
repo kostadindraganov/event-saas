@@ -196,3 +196,60 @@ test("edit(): несъществуващо ревю → NOT_FOUND", async () => 
     wouldRecommend: false,
   })).rejects.toMatchObject({ code: "NOT_FOUND" });
 });
+
+test("reply(): собственикът на обявата отговаря публично, БЕЗ промяна на агрегата", async () => {
+  const { owner, listingId } = await newOwner();
+  const customer = await newCustomer();
+  const bookingId = await bookingFor(listingId, customer.id);
+  const created = await ReviewDAL.for(asSessionUser(customer)).create(reviewInput(bookingId));
+  const [before] = await testDb.select({ reviewCount: schema.listing.reviewCount, ratingAvg: schema.listing.ratingAvg })
+    .from(schema.listing).where(eq(schema.listing.id, listingId));
+
+  const result = await ReviewDAL.for(asSessionUser(owner)).reply({
+    reviewId: created.id, text: "Благодарим за прекрасния отзив!",
+  });
+  expect(result.listingSlug).toBeTruthy();
+
+  const [row] = await testDb.select({ replyText: schema.review.replyText, replyUpdatedAt: schema.review.replyUpdatedAt })
+    .from(schema.review).where(eq(schema.review.id, created.id));
+  expect(row?.replyText).toBe("Благодарим за прекрасния отзив!");
+  expect(row?.replyUpdatedAt).toBeInstanceOf(Date);
+
+  const [after] = await testDb.select({ reviewCount: schema.listing.reviewCount, ratingAvg: schema.listing.ratingAvg })
+    .from(schema.listing).where(eq(schema.listing.id, listingId));
+  expect(after?.reviewCount).toBe(before?.reviewCount);
+  expect(after?.ratingAvg).toBe(before?.ratingAvg);
+});
+
+test("reply(): чужд потребител (не owner на обявата, не admin) → NOT_FOUND", async () => {
+  const { listingId } = await newOwner();
+  const customer = await newCustomer();
+  const stranger = await newCustomer();
+  const bookingId = await bookingFor(listingId, customer.id);
+  const created = await ReviewDAL.for(asSessionUser(customer)).create(reviewInput(bookingId));
+
+  await expect(
+    ReviewDAL.for(asSessionUser(stranger)).reply({ reviewId: created.id, text: "Не съм собственикът." }),
+  ).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+
+test("reply(): admin може да отговори вместо собственика", async () => {
+  const { listingId } = await newOwner();
+  const customer = await newCustomer();
+  const admin = await createTestUser({ isAdmin: true });
+  cleanupIds.push(admin.id);
+  const bookingId = await bookingFor(listingId, customer.id);
+  const created = await ReviewDAL.for(asSessionUser(customer)).create(reviewInput(bookingId));
+
+  const result = await ReviewDAL.for(asSessionUser(admin, { isAdmin: true })).reply({
+    reviewId: created.id, text: "Отговор от модератор.",
+  });
+  expect(result.listingSlug).toBeTruthy();
+});
+
+test("reply(): несъществуващо ревю → NOT_FOUND", async () => {
+  const owner = await newCustomer();
+  await expect(
+    ReviewDAL.for(asSessionUser(owner)).reply({ reviewId: "00000000-0000-0000-0000-000000000000", text: "Тест" }),
+  ).rejects.toMatchObject({ code: "NOT_FOUND" });
+});

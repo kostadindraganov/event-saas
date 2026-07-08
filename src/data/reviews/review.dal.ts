@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { booking, listing, review } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
 import { recomputeListingRating } from "./aggregate";
-import type { ReviewCreateInput, ReviewEditInput } from "./review.dto";
+import type { ReviewCreateInput, ReviewEditInput, ReviewReplyInput } from "./review.dto";
 
 const EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
 
@@ -110,5 +110,19 @@ export class ReviewDAL {
     revalidateTag(`listing:${l.slug}`, { expire: 0 });
     revalidateTag("listings", { expire: 0 });
     return { listingSlug: l.slug };
+  }
+
+  // REPLY: собственикът на обявата ИЛИ admin. Един слот, editable неограничено. БЕЗ агрегат промяна.
+  async reply(input: ReviewReplyInput): Promise<{ listingSlug: string }> {
+    const authUser = this.requireUser();
+    const [row] = await db.select({
+      listingOwnerId: listing.ownerId, listingSlug: listing.slug,
+    }).from(review).innerJoin(listing, eq(review.listingId, listing.id)).where(eq(review.id, input.reviewId));
+    if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+    if (row.listingOwnerId !== authUser.id && !authUser.isAdmin) throw new TRPCError({ code: "NOT_FOUND" });
+
+    await db.update(review).set({ replyText: input.text, replyUpdatedAt: new Date() }).where(eq(review.id, input.reviewId));
+    revalidateTag(`listing:${row.listingSlug}`, { expire: 0 });
+    return { listingSlug: row.listingSlug };
   }
 }
