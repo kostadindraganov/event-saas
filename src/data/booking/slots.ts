@@ -9,6 +9,15 @@ export function todaySofia(): string {
   }).format(new Date());
 }
 
+// Sofia "вчера" за cron reminder прозореца (D7). Пресмята се спрямо todaySofia() чрез UTC-пладне
+// аритметика (както weekdayOf по-долу) — setUTCDate нормализира месец/година границите вярно, а
+// часовете никога не участват в изчислението, затова DST преходът не може да го обърка.
+export function yesterdaySofia(): string {
+  const d = new Date(`${todaySofia()}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 export function weekdayOf(dateStr: string): number {
   // dateStr е чиста дата "YYYY-MM-DD" (без час) — денят от седмицата е еднакъв във всяка tz;
   // парсваме на UTC пладне, за да избегнем DST/edge отмествания при "new Date(dateStr)".

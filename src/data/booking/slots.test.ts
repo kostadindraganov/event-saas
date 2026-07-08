@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { addMinutes, generateDaySlots, isPastDate, overlaps, todaySofia, weekdayOf } from "./slots";
+import { addMinutes, generateDaySlots, isPastDate, overlaps, todaySofia, weekdayOf, yesterdaySofia } from "./slots";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -192,4 +192,32 @@ test("generateDaySlots: rule времена във format \"HH:MM:SS\" → из�
     { startTime: "09:00", endTime: "10:00" },
     { startTime: "10:00", endTime: "11:00" },
   ]);
+});
+
+test("yesterdaySofia: обикновен ден", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-08-11T10:00:00Z")); // Sofia лято UTC+3: 2026-08-11
+  expect(todaySofia()).toBe("2026-08-11");
+  expect(yesterdaySofia()).toBe("2026-08-10");
+});
+
+test("yesterdaySofia: граница на годината (01.01 → 31.12 предходна година)", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2025-12-31T22:30:00Z")); // Sofia зима UTC+2: 2026-01-01 00:30
+  expect(todaySofia()).toBe("2026-01-01");
+  expect(yesterdaySofia()).toBe("2025-12-31");
+});
+
+test("yesterdaySofia: граница на месеца (01.03 → 28.02)", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-03-01T10:00:00Z"));
+  expect(todaySofia()).toBe("2026-03-01");
+  expect(yesterdaySofia()).toBe("2026-02-28");
+});
+
+test("yesterdaySofia: около DST прехода (март 2026) — UTC-пладне аритметика, без tz зависимост", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-03-29T21:30:00Z")); // Sofia превключва към лятно време тази нощ; локално 2026-03-30 00:30
+  expect(todaySofia()).toBe("2026-03-30");
+  expect(yesterdaySofia()).toBe("2026-03-29");
 });
