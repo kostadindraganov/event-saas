@@ -14,6 +14,7 @@ export default function DostavchikLayout({ children }: { children: React.ReactNo
     { href: "/profil/dostavchik/abonament", label: t("subscription") },
     { href: "/profil/dostavchik/promotirane", label: t("promotion") },
     { href: "/profil/dostavchik/kalendar", label: tBooking("navLabel") },
+    { href: "/profil/dostavchik/recenzii", label: t("reviews") },
   ] as const;
 
   return (
