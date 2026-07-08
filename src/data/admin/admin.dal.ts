@@ -488,6 +488,19 @@ export class AdminDAL {
             const [l] = await tx.select({ slug: listing.slug }).from(listing).where(eq(listing.id, rev.listingId));
             affectedSlug = l?.slug ?? null;
           }
+        } else if (rpt.targetType === "question") {
+          await tx.update(question)
+            .set({ status: input.action === "hide" ? "hidden_by_admin" : "removed" })
+            .where(eq(question.id, rpt.targetId));
+        } else {
+          // CAS mirrors AdminDAL.remove: hide from published only, remove from published|hidden
+          // (plan header reconciliation #6 — supersedes interfaces.md §7's stale published|hidden-for-hide note)
+          const fromStatuses = input.action === "hide" ? (["published"] as const) : (["published", "hidden"] as const);
+          const [updated] = await tx.update(listing)
+            .set({ status: input.action === "hide" ? "hidden" : "removed", updatedAt: new Date() })
+            .where(and(eq(listing.id, rpt.targetId), inArray(listing.status, fromStatuses)))
+            .returning({ slug: listing.slug });
+          if (updated) affectedSlug = updated.slug;
         }
       }
 

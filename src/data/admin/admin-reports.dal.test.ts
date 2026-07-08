@@ -134,3 +134,79 @@ test("resolveReport: review target action=hide → review.status=hidden_by_admin
   await testDb.delete(schema.report).where(eq(schema.report.id, rpt!.id));
   await testDb.delete(schema.review).where(eq(schema.review.id, rev.id));
 });
+
+test("resolveReport: question target action=remove → question.status=removed", async () => {
+  const owner = await createTestUser();
+  cleanupIds.push(owner.id);
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const listingRow = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+
+  const asker = await createTestUser();
+  cleanupIds.push(asker.id);
+  const [q] = await testDb.insert(schema.question).values({
+    listingId: listingRow.id, authorId: asker.id, body: "Работите ли на празници?",
+  }).returning();
+
+  const reporter = await createTestUser();
+  cleanupIds.push(reporter.id);
+  const [rpt] = await testDb.insert(schema.report).values({
+    targetType: "question", targetId: q!.id, reporterId: reporter.id, reason: "Спам въпрос",
+  }).returning();
+
+  await AdminDAL.resolveReport({ id: rpt!.id, action: "remove" });
+
+  const [qAfter] = await testDb.select().from(schema.question).where(eq(schema.question.id, q!.id));
+  expect(qAfter?.status).toBe("removed");
+
+  await testDb.delete(schema.report).where(eq(schema.report.id, rpt!.id));
+  // question каскадира от listing (owner cleanup по-долу) — не е нужно явно изтриване тук
+});
+
+test("resolveReport: listing target action=hide → status=hidden (CAS от published); action=remove → status=removed", async () => {
+  const owner = await createTestUser();
+  cleanupIds.push(owner.id);
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const listingA = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+  const listingB = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+
+  const reporter = await createTestUser();
+  cleanupIds.push(reporter.id);
+  const [rptA] = await testDb.insert(schema.report).values({
+    targetType: "listing", targetId: listingA.id, reporterId: reporter.id, reason: "А",
+  }).returning();
+  const [rptB] = await testDb.insert(schema.report).values({
+    targetType: "listing", targetId: listingB.id, reporterId: reporter.id, reason: "Б",
+  }).returning();
+
+  await AdminDAL.resolveReport({ id: rptA!.id, action: "hide" });
+  const [rowA] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, listingA.id));
+  expect(rowA?.status).toBe("hidden");
+
+  await AdminDAL.resolveReport({ id: rptB!.id, action: "remove" });
+  const [rowB] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, listingB.id));
+  expect(rowB?.status).toBe("removed");
+
+  await testDb.delete(schema.report).where(inArray(schema.report.id, [rptA!.id, rptB!.id]));
+});
+
+test("resolveReport: вече resolved report → CONFLICT ALREADY_RESOLVED", async () => {
+  const owner = await createTestUser();
+  cleanupIds.push(owner.id);
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const listingRow = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+
+  const reporter = await createTestUser();
+  cleanupIds.push(reporter.id);
+  const [rpt] = await testDb.insert(schema.report).values({
+    targetType: "listing", targetId: listingRow.id, reporterId: reporter.id, reason: "Дубликат тест",
+  }).returning();
+
+  await AdminDAL.resolveReport({ id: rpt!.id, action: "dismiss" });
+  await expect(AdminDAL.resolveReport({ id: rpt!.id, action: "dismiss" }))
+    .rejects.toMatchObject({ code: "CONFLICT", message: "ALREADY_RESOLVED" });
+
+  await testDb.delete(schema.report).where(eq(schema.report.id, rpt!.id));
+});
