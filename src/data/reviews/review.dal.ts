@@ -1,12 +1,14 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { booking, listing, review } from "@/db/schema";
+import { booking, listing, review, reviewImage, user } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
 import { recomputeListingRating } from "./aggregate";
-import type { ReviewCreateInput, ReviewEditInput, ReviewReplyInput } from "./review.dto";
+import type {
+  ReviewCreateInput, ReviewEditInput, ReviewImageDTO, ReviewPublicDTO, ReviewReplyInput,
+} from "./review.dto";
 
 const EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
 
@@ -124,5 +126,41 @@ export class ReviewDAL {
     await db.update(review).set({ replyText: input.text, replyUpdatedAt: new Date() }).where(eq(review.id, input.reviewId));
     revalidateTag(`listing:${row.listingSlug}`, { expire: 0 });
     return { listingSlug: row.listingSlug };
+  }
+
+  // PUBLIC read за obiava страницата (visible само, с images). Вика се от ReviewDAL.public() в
+  // getBySlug batch-а (decision A). Не изисква this.user — работи еднакво за for()/public().
+  async listByListing(listingId: string): Promise<ReviewPublicDTO[]> {
+    const rows = await db.select({
+      id: review.id, authorName: user.name, ratingOverall: review.ratingOverall,
+      ratingQuality: review.ratingQuality, ratingCommunication: review.ratingCommunication,
+      ratingProfessionalism: review.ratingProfessionalism, ratingValue: review.ratingValue,
+      ratingFlexibility: review.ratingFlexibility, title: review.title, body: review.body,
+      wouldRecommend: review.wouldRecommend, eventDate: review.eventDate,
+      replyText: review.replyText, replyUpdatedAt: review.replyUpdatedAt, createdAt: review.createdAt,
+    }).from(review)
+      .innerJoin(user, eq(review.authorId, user.id))
+      .where(and(eq(review.listingId, listingId), eq(review.status, "visible")))
+      .orderBy(desc(review.createdAt));
+    if (rows.length === 0) return [];
+
+    const reviewIds = rows.map((r) => r.id);
+    const imageRows = await db.select({ id: reviewImage.id, reviewId: reviewImage.reviewId, cfImageId: reviewImage.cfImageId })
+      .from(reviewImage).where(inArray(reviewImage.reviewId, reviewIds));
+    const imagesByReview = new Map<string, ReviewImageDTO[]>();
+    for (const img of imageRows) {
+      const list = imagesByReview.get(img.reviewId) ?? [];
+      list.push({ id: img.id, cfImageId: img.cfImageId });
+      imagesByReview.set(img.reviewId, list);
+    }
+
+    return rows.map((r) => ({
+      id: r.id, authorName: r.authorName, ratingOverall: Number(r.ratingOverall),
+      ratingQuality: r.ratingQuality, ratingCommunication: r.ratingCommunication,
+      ratingProfessionalism: r.ratingProfessionalism, ratingValue: r.ratingValue, ratingFlexibility: r.ratingFlexibility,
+      title: r.title, body: r.body, wouldRecommend: r.wouldRecommend, eventDate: r.eventDate,
+      replyText: r.replyText, replyUpdatedAt: r.replyUpdatedAt,
+      images: imagesByReview.get(r.id) ?? [], createdAt: r.createdAt,
+    }));
   }
 }

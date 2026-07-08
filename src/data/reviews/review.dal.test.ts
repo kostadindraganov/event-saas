@@ -253,3 +253,30 @@ test("reply(): несъществуващо ревю → NOT_FOUND", async () =>
     ReviewDAL.for(asSessionUser(owner)).reply({ reviewId: "00000000-0000-0000-0000-000000000000", text: "Тест" }),
   ).rejects.toMatchObject({ code: "NOT_FOUND" });
 });
+
+test("listByListing(): връща само visible ревюта с images, подредени по createdAt desc", async () => {
+  const { listingId } = await newOwner();
+  const customer = await newCustomer();
+  const b1 = await bookingFor(listingId, customer.id);
+  const b2 = await bookingFor(listingId, customer.id);
+  const hiddenBookingId = await bookingFor(listingId, customer.id);
+
+  await createTestReview(b1, listingId, customer.id, {
+    title: "По-старо", createdAt: new Date(Date.now() - 60 * 60 * 1000),
+  });
+  const newer = await createTestReview(b2, listingId, customer.id, { title: "По-ново" });
+  await testDb.insert(schema.reviewImage).values({ reviewId: newer.id, cfImageId: "cf-test-image-1" });
+  await createTestReview(hiddenBookingId, listingId, customer.id, { title: "Скрито", status: "hidden_by_admin" });
+
+  const result = await ReviewDAL.public().listByListing(listingId);
+  expect(result.map((r) => r.title)).toEqual(["По-ново", "По-старо"]);
+  expect(result[0]?.images).toEqual([{ id: expect.any(String), cfImageId: "cf-test-image-1" }]);
+  expect(result[1]?.images).toEqual([]);
+  expect(result[0]?.ratingOverall).toBeCloseTo(5, 2);
+});
+
+test("listByListing(): празна обява (без ревюта) → []", async () => {
+  const { listingId } = await newOwner();
+  const result = await ReviewDAL.public().listByListing(listingId);
+  expect(result).toEqual([]);
+});
