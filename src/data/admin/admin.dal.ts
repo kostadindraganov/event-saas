@@ -480,18 +480,19 @@ export class AdminDAL {
       if (input.action !== "dismiss") {
         if (rpt.targetType === "review") {
           const [rev] = await tx.select({ listingId: review.listingId }).from(review).where(eq(review.id, rpt.targetId));
-          if (rev) {
-            await tx.update(review)
-              .set({ status: input.action === "hide" ? "hidden_by_admin" : "removed" })
-              .where(eq(review.id, rpt.targetId));
-            await recomputeListingRating(tx, rev.listingId);
-            const [l] = await tx.select({ slug: listing.slug }).from(listing).where(eq(listing.id, rev.listingId));
-            affectedSlug = l?.slug ?? null;
-          }
-        } else if (rpt.targetType === "question") {
-          await tx.update(question)
+          if (!rev) throw new TRPCError({ code: "NOT_FOUND" });
+          await tx.update(review)
             .set({ status: input.action === "hide" ? "hidden_by_admin" : "removed" })
-            .where(eq(question.id, rpt.targetId));
+            .where(eq(review.id, rpt.targetId));
+          await recomputeListingRating(tx, rev.listingId);
+          const [l] = await tx.select({ slug: listing.slug }).from(listing).where(eq(listing.id, rev.listingId));
+          affectedSlug = l?.slug ?? null;
+        } else if (rpt.targetType === "question") {
+          const [updatedQuestion] = await tx.update(question)
+            .set({ status: input.action === "hide" ? "hidden_by_admin" : "removed" })
+            .where(eq(question.id, rpt.targetId))
+            .returning({ id: question.id });
+          if (!updatedQuestion) throw new TRPCError({ code: "NOT_FOUND" });
         } else {
           // CAS mirrors AdminDAL.remove: hide from published only, remove from published|hidden
           // (plan header reconciliation #6 — supersedes interfaces.md §7's stale published|hidden-for-hide note)
@@ -500,7 +501,9 @@ export class AdminDAL {
             .set({ status: input.action === "hide" ? "hidden" : "removed", updatedAt: new Date() })
             .where(and(eq(listing.id, rpt.targetId), inArray(listing.status, fromStatuses)))
             .returning({ slug: listing.slug });
-          if (updated) affectedSlug = updated.slug;
+          // no row matched → target already in a non-actionable state; rollback, don't resolve the report
+          if (!updated) throw new TRPCError({ code: "CONFLICT", message: "TARGET_NOT_ACTIONABLE" });
+          affectedSlug = updated.slug;
         }
       }
 
