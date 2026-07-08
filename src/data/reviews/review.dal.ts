@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { booking, listing, review } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
 import { recomputeListingRating } from "./aggregate";
-import type { ReviewCreateInput } from "./review.dto";
+import type { ReviewCreateInput, ReviewEditInput } from "./review.dto";
 
 const EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
 
@@ -77,5 +77,38 @@ export class ReviewDAL {
     revalidateTag(`listing:${l.slug}`, { expire: 0 });
     revalidateTag("listings", { expire: 0 });
     return { id, listingSlug: l.slug };
+  }
+
+  // EDIT: авторът до editableUntil; след това само admin. Admin може да редактира ВСЯКО ревю
+  // (модерационна власт, не е обвързана с авторство — D4: "след това само админ").
+  async edit(input: ReviewEditInput): Promise<{ listingSlug: string }> {
+    const authUser = this.requireUser();
+    const [row] = await db.select({
+      authorId: review.authorId, listingId: review.listingId, editableUntil: review.editableUntil,
+    }).from(review).where(eq(review.id, input.id));
+    if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+    const isAuthor = row.authorId === authUser.id;
+    if (!isAuthor && !authUser.isAdmin) throw new TRPCError({ code: "NOT_FOUND" });
+    if (isAuthor && !authUser.isAdmin && new Date() >= row.editableUntil) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "EDIT_WINDOW_CLOSED" });
+    }
+
+    const [l] = await db.select({ slug: listing.slug }).from(listing).where(eq(listing.id, row.listingId));
+    if (!l) throw new TRPCError({ code: "NOT_FOUND" });
+
+    const ratingOverall = ratingOverallOf(input);
+    await db.transaction(async (tx) => {
+      await tx.update(review).set({
+        ratingQuality: input.ratingQuality, ratingCommunication: input.ratingCommunication,
+        ratingProfessionalism: input.ratingProfessionalism, ratingValue: input.ratingValue,
+        ratingFlexibility: input.ratingFlexibility, ratingOverall,
+        title: input.title, body: input.body, wouldRecommend: input.wouldRecommend,
+      }).where(eq(review.id, input.id));
+      await recomputeListingRating(tx, row.listingId);
+    });
+
+    revalidateTag(`listing:${l.slug}`, { expire: 0 });
+    revalidateTag("listings", { expire: 0 });
+    return { listingSlug: l.slug };
   }
 }

@@ -113,3 +113,86 @@ test("create(): второ ревю за същата резервация → C
   await expect(ReviewDAL.for(asSessionUser(customer)).create(reviewInput(bookingId)))
     .rejects.toMatchObject({ code: "CONFLICT", message: "ALREADY_REVIEWED" });
 });
+
+test("edit(): авторът в 48ч прозореца редактира оценки+текст, ratingOverall се преизчислява, агрегат се обновява", async () => {
+  const { listingId } = await newOwner();
+  const customer = await newCustomer();
+  const bookingId = await bookingFor(listingId, customer.id);
+  const created = await ReviewDAL.for(asSessionUser(customer)).create(reviewInput(bookingId));
+
+  const result = await ReviewDAL.for(asSessionUser(customer)).edit({
+    id: created.id,
+    ratingQuality: 2, ratingCommunication: 2, ratingProfessionalism: 2, ratingValue: 2, ratingFlexibility: 2,
+    title: "Редактирано мнение", body: "Промених си мнението след размисъл за детайлите на събитието.",
+    wouldRecommend: false,
+  });
+  expect(result.listingSlug).toBeTruthy();
+
+  const [row] = await testDb.select().from(schema.review).where(eq(schema.review.id, created.id));
+  expect(Number(row?.ratingOverall)).toBeCloseTo(2, 2);
+  expect(row?.title).toBe("Редактирано мнение");
+
+  const [l] = await testDb.select({ ratingAvg: schema.listing.ratingAvg })
+    .from(schema.listing).where(eq(schema.listing.id, listingId));
+  expect(Number(l?.ratingAvg)).toBeCloseTo(2, 2);
+});
+
+test("edit(): извън 48ч прозореца, автор без admin права → FORBIDDEN EDIT_WINDOW_CLOSED", async () => {
+  const { listingId } = await newOwner();
+  const customer = await newCustomer();
+  const bookingId = await bookingFor(listingId, customer.id);
+  const past = new Date(Date.now() - 60 * 60 * 1000);
+  const r = await createTestReview(bookingId, listingId, customer.id, { editableUntil: past });
+
+  await expect(ReviewDAL.for(asSessionUser(customer)).edit({
+    id: r.id,
+    ratingQuality: 3, ratingCommunication: 3, ratingProfessionalism: 3, ratingValue: 3, ratingFlexibility: 3,
+    title: "Опит за редакция", body: "Този опит трябва да бъде отхвърлен от guard-а за прозореца.",
+    wouldRecommend: true,
+  })).rejects.toMatchObject({ code: "FORBIDDEN", message: "EDIT_WINDOW_CLOSED" });
+});
+
+test("edit(): admin редактира чуждо ревю дори извън 48ч прозореца (модерация)", async () => {
+  const { listingId } = await newOwner();
+  const customer = await newCustomer();
+  const admin = await createTestUser({ isAdmin: true });
+  cleanupIds.push(admin.id);
+  const bookingId = await bookingFor(listingId, customer.id);
+  const past = new Date(Date.now() - 60 * 60 * 1000);
+  const r = await createTestReview(bookingId, listingId, customer.id, { editableUntil: past });
+
+  const result = await ReviewDAL.for(asSessionUser(admin, { isAdmin: true })).edit({
+    id: r.id,
+    ratingQuality: 1, ratingCommunication: 1, ratingProfessionalism: 1, ratingValue: 1, ratingFlexibility: 1,
+    title: "Админ модерация", body: "Админът коригира текста след сигнал за неприлично съдържание.",
+    wouldRecommend: false,
+  });
+  expect(result.listingSlug).toBeTruthy();
+  const [row] = await testDb.select({ title: schema.review.title }).from(schema.review).where(eq(schema.review.id, r.id));
+  expect(row?.title).toBe("Админ модерация");
+});
+
+test("edit(): чужд потребител (не автор, не admin) → NOT_FOUND", async () => {
+  const { listingId } = await newOwner();
+  const customer = await newCustomer();
+  const stranger = await newCustomer();
+  const bookingId = await bookingFor(listingId, customer.id);
+  const r = await createTestReview(bookingId, listingId, customer.id);
+
+  await expect(ReviewDAL.for(asSessionUser(stranger)).edit({
+    id: r.id,
+    ratingQuality: 1, ratingCommunication: 1, ratingProfessionalism: 1, ratingValue: 1, ratingFlexibility: 1,
+    title: "Хак опит", body: "Този опит идва от чужд акаунт и трябва да бъде отхвърлен от guard-а.",
+    wouldRecommend: false,
+  })).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+
+test("edit(): несъществуващо ревю → NOT_FOUND", async () => {
+  const customer = await newCustomer();
+  await expect(ReviewDAL.for(asSessionUser(customer)).edit({
+    id: "00000000-0000-0000-0000-000000000000",
+    ratingQuality: 1, ratingCommunication: 1, ratingProfessionalism: 1, ratingValue: 1, ratingFlexibility: 1,
+    title: "Няма такова", body: "Тестов текст с достатъчна дължина за да мине zod валидацията.",
+    wouldRecommend: false,
+  })).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
