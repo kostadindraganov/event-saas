@@ -2,9 +2,13 @@ import "server-only";
 import { and, asc, count, desc, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { attributeDefinition, category, city, listing, listingAttribute, listingServiceRegion, promotion, region, session, setting, subscription, user } from "@/db/schema";
+import {
+  attributeDefinition, category, city, listing, listingAttribute, listingServiceRegion,
+  promotion, question, region, report, review, session, setting, subscription, user,
+} from "@/db/schema";
 import { AttributeDAL } from "@/data/catalog/attribute.dal";
 import { BillingDAL, getBillingSettings, type BillingSettings } from "@/data/billing/billing.dal";
+import { recomputeListingRating } from "@/data/reviews/aggregate";
 import { listingApprovedEmail, listingRejectedEmail, sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
 import type {
@@ -23,6 +27,8 @@ import type {
   CityCreateInput,
   CityUpdateInput,
   CityRowDTO,
+  ReportRowDTO,
+  ReportResolveInput,
 } from "./admin.dto";
 
 // drizzle-orm/neon-serverless обвива pg грешката — реалният код е в err.cause.code
@@ -396,5 +402,65 @@ export class AdminDAL {
       .from(city)
       .where(eq(city.regionId, regionId))
       .orderBy(asc(city.name));
+  }
+
+  static async listReports(): Promise<ReportRowDTO[]> {
+    const rows = await db
+      .select({
+        id: report.id,
+        targetType: report.targetType,
+        targetId: report.targetId,
+        reason: report.reason,
+        reporterEmail: user.email,
+        createdAt: report.createdAt,
+      })
+      .from(report)
+      .innerJoin(user, eq(report.reporterId, user.id))
+      .where(eq(report.status, "open"))
+      .orderBy(desc(report.createdAt));
+
+    const reviewIds = rows.filter((r) => r.targetType === "review").map((r) => r.targetId);
+    const questionIds = rows.filter((r) => r.targetType === "question").map((r) => r.targetId);
+    const listingIds = rows.filter((r) => r.targetType === "listing").map((r) => r.targetId);
+
+    const [reviewRows, questionRows, listingRows] = await Promise.all([
+      reviewIds.length
+        ? db.select({ id: review.id, excerpt: review.title, slug: listing.slug })
+            .from(review).innerJoin(listing, eq(review.listingId, listing.id))
+            .where(inArray(review.id, reviewIds))
+        : Promise.resolve([]),
+      questionIds.length
+        ? db.select({ id: question.id, excerpt: question.body, slug: listing.slug })
+            .from(question).innerJoin(listing, eq(question.listingId, listing.id))
+            .where(inArray(question.id, questionIds))
+        : Promise.resolve([]),
+      listingIds.length
+        ? db.select({ id: listing.id, excerpt: listing.title, slug: listing.slug })
+            .from(listing)
+            .where(inArray(listing.id, listingIds))
+        : Promise.resolve([]),
+    ]);
+
+    const reviewMap = new Map(reviewRows.map((r) => [r.id, r]));
+    const questionMap = new Map(questionRows.map((r) => [r.id, r]));
+    const listingMap = new Map(listingRows.map((r) => [r.id, r]));
+
+    return rows.map((r) => {
+      const t =
+        r.targetType === "review" ? reviewMap.get(r.targetId)
+        : r.targetType === "question" ? questionMap.get(r.targetId)
+        : listingMap.get(r.targetId);
+      const excerpt = t?.excerpt ?? null;
+      return {
+        id: r.id,
+        targetType: r.targetType,
+        targetId: r.targetId,
+        reason: r.reason,
+        reporterEmail: r.reporterEmail,
+        createdAt: r.createdAt.toISOString(),
+        targetExcerpt: r.targetType === "question" && excerpt ? excerpt.slice(0, 80) : excerpt,
+        targetListingSlug: t?.slug ?? null,
+      };
+    });
   }
 }

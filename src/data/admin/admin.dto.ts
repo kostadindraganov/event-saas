@@ -127,3 +127,21 @@ export const CityCreateSchema = z.object(cityFields);
 export const CityUpdateSchema = z.object({ id: z.uuid(), ...cityFields });
 export type CityCreateInput = z.infer<typeof CityCreateSchema>;
 export type CityUpdateInput = z.infer<typeof CityUpdateSchema>;
+
+export type ReportRowDTO = {
+  id: string;
+  targetType: "review" | "question" | "listing";
+  targetId: string;
+  reason: string;
+  reporterEmail: string;
+  createdAt: string;
+  targetExcerpt: string | null; // review.title / question.body[:80] / listing.title; null ако изтрит
+  targetListingSlug: string | null; // за revalidate при resolve
+};
+
+export const ReportResolveSchema = z.object({
+  id: z.uuid(),
+  action: z.enum(["hide", "remove", "dismiss"]),
+  resolution: z.string().max(1000).optional(),
+});
+export type ReportResolveInput = z.infer<typeof ReportResolveSchema>;
