@@ -587,6 +587,9 @@
     "empty": "No reviews yet for this listing.",
     "wouldRecommend": "Recommends",
     "vendorReplyLabel": "Reply from the vendor",
+    "editCta": "Edit review",
+    "editTitle": "Edit review",
+    "errorEditWindowClosed": "The edit window has closed (48 hours).",
     "form": {
       "cta": "Write a review",
       "title": "Write a review",

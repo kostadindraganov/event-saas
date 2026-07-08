@@ -104,9 +104,9 @@ export function BookingList() {
                 <CancelDialog booking={b} onCancelled={invalidate} />
               </div>
             )}
-            {b.status === "completed" && !b.hasReview && (
+            {b.status === "completed" && (
               <div className="mt-3">
-                <ReviewForm booking={b} />
+                <ReviewForm booking={b} editMode={b.hasReview} />
               </div>
             )}
           </li>
