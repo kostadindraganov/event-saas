@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { JsonLd } from "@/components/catalog/json-ld";
 import { SaveButton } from "@/components/saved/save-button";
 import { ListingGallery } from "@/components/catalog/listing-gallery";
+import { ReviewsSection } from "@/components/reviews/reviews-section";
+import { QaSection } from "@/components/reviews/qa-section";
 import { PackageCard } from "@/components/catalog/package-card";
 import { InquiryForm } from "@/components/messaging/inquiry-form";
 import { BookingRequestForm, PublicAvailabilityCalendar } from "@/components/booking/booking-request-form";
@@ -173,6 +175,9 @@ export default async function ListingPage({
           </div>
         </section>
       )}
+
+      <ReviewsSection reviews={listing.reviews} />
+      <QaSection listingId={listing.id} />
     </main>
   );
 }
