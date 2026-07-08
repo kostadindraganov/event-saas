@@ -14,6 +14,7 @@ export function AdminNav() {
     { href: "/admin/potrebiteli", label: t("users") },
     { href: "/admin/taksonomia", label: t("taxonomy") },
     { href: "/admin/nastroyki", label: t("settings") },
+    { href: "/admin/signali", label: t("reports") },
   ] as const;
 
   return (
