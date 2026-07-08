@@ -1,6 +1,6 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, notInArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { booking, listing, review, reviewImage, user } from "@/db/schema";
@@ -162,5 +162,23 @@ export class ReviewDAL {
       replyText: r.replyText, replyUpdatedAt: r.replyUpdatedAt,
       images: imagesByReview.get(r.id) ?? [], createdAt: r.createdAt,
     }));
+  }
+
+  // D7 cron: booking status='completed' И eventDate==targetDate И без ревю → напомняне. Static —
+  // cron няма user context. reviewedIds е плоска global заявка (проста, малка таблица за MVP —
+  // ако review нарасне значително, филтрирай по eventDate join преди NOT IN).
+  static async findReminderTargets(targetDate: string): Promise<{ bookingId: string; email: string; listingTitle: string }[]> {
+    const reviewedRows = await db.select({ bookingId: review.bookingId }).from(review);
+    const reviewedIds = reviewedRows.map((r) => r.bookingId);
+
+    return db.select({ bookingId: booking.id, email: user.email, listingTitle: listing.title })
+      .from(booking)
+      .innerJoin(user, eq(booking.customerId, user.id))
+      .innerJoin(listing, eq(booking.listingId, listing.id))
+      .where(and(
+        eq(booking.status, "completed"),
+        eq(booking.eventDate, targetDate),
+        reviewedIds.length > 0 ? notInArray(booking.id, reviewedIds) : undefined,
+      ));
   }
 }

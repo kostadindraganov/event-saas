@@ -280,3 +280,24 @@ test("listByListing(): празна обява (без ревюта) → []", as
   const result = await ReviewDAL.public().listByListing(listingId);
   expect(result).toEqual([]);
 });
+
+test("findReminderTargets(): completed резервация без ревю на целевата дата се връща; с ревю или друга дата — не", async () => {
+  const { listingId } = await newOwner();
+  const customer = await newCustomer();
+  const targetDate = "2026-02-15";
+  const withoutReview = await bookingFor(listingId, customer.id, { eventDate: targetDate });
+  const withReview = await bookingFor(listingId, customer.id, { eventDate: targetDate });
+  await createTestReview(withReview, listingId, customer.id);
+  const otherDate = await bookingFor(listingId, customer.id, { eventDate: "2026-02-16" });
+  const stillPending = await bookingFor(listingId, customer.id, { eventDate: targetDate, status: "pending" });
+
+  const targets = await ReviewDAL.findReminderTargets(targetDate);
+  const bookingIds = targets.map((t) => t.bookingId);
+  expect(bookingIds).toContain(withoutReview);
+  expect(bookingIds).not.toContain(withReview);
+  expect(bookingIds).not.toContain(otherDate);
+  expect(bookingIds).not.toContain(stillPending);
+
+  const target = targets.find((t) => t.bookingId === withoutReview);
+  expect(target?.email).toBe(customer.email);
+});
