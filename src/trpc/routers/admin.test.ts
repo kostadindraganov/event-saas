@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { randomUUID } from "node:crypto";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { appRouter } from "./_app";
 import { createCallerFactory } from "../init";
 import {
@@ -70,4 +70,32 @@ test("admin.listing.approve делегира AdminDAL.approve → pending_approv
   expect(result.status).toBe("published");
 
   await cleanupTestUser(owner.id);
+});
+
+test("admin.report.list/resolve: non-admin → FORBIDDEN", async () => {
+  await expect(plain.admin.report.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(plain.admin.report.resolve({ id: randomUUID(), action: "dismiss" }))
+    .rejects.toMatchObject({ code: "FORBIDDEN" });
+});
+
+test("admin.report.list/resolve делегира AdminDAL: listing target hide → listing.status=hidden", async () => {
+  const owner = await createTestUser();
+  const reporter = await createTestUser();
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const target = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+  const [rpt] = await testDb.insert(schema.report).values({
+    targetType: "listing", targetId: target.id, reporterId: reporter.id, reason: "Нередност",
+  }).returning();
+
+  const listed = await admin.admin.report.list();
+  expect(listed.some((r) => r.id === rpt!.id)).toBe(true);
+
+  await admin.admin.report.resolve({ id: rpt!.id, action: "hide" });
+  const [row] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, target.id));
+  expect(row?.status).toBe("hidden");
+
+  await testDb.delete(schema.report).where(eq(schema.report.id, rpt!.id));
+  await cleanupTestUser(owner.id);
+  await cleanupTestUser(reporter.id);
 });

@@ -12,6 +12,7 @@ import {
   RegionUpdateSchema,
   CityCreateSchema,
   CityUpdateSchema,
+  ReportResolveSchema,
 } from "@/data/admin/admin.dto";
 
 const byId = z.object({ id: z.uuid() });
@@ -141,5 +142,10 @@ export const adminRouter = createTRPCRouter({
         return { ok: true as const };
       }),
     }),
+  }),
+
+  report: createTRPCRouter({
+    list: adminProcedure.query(() => AdminDAL.listReports()),
+    resolve: adminProcedure.input(ReportResolveSchema).mutation(({ input }) => AdminDAL.resolveReport(input)),
   }),
 });
