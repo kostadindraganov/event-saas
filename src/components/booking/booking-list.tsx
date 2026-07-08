@@ -12,6 +12,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { BookingStatusBadge } from "@/components/booking/booking-status-badge";
+import { ReviewForm } from "@/components/reviews/review-form";
 import { sofiaTodayStr } from "@/components/booking/month-calendar";
 import type { BookingDTO, BookingStatus } from "@/data/booking/booking.dto";
 
@@ -101,6 +102,11 @@ export function BookingList() {
             {cancellable && (
               <div className="mt-3">
                 <CancelDialog booking={b} onCancelled={invalidate} />
+              </div>
+            )}
+            {b.status === "completed" && !b.hasReview && (
+              <div className="mt-3">
+                <ReviewForm booking={b} />
               </div>
             )}
           </li>
