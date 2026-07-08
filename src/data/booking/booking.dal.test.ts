@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "vitest";
 import { BookingDAL } from "./booking.dal";
 import {
   testDb, createTestUser, cleanupTestUser, createTestListing, getTestCategoryId, getTestCityId,
-  createTestServiceType, createTestAvailability, createTestBooking,
+  createTestServiceType, createTestAvailability, createTestBooking, createTestReview,
 } from "@/test/db-helpers";
 import { weekdayOf } from "./slots";
 import * as schema from "@/db/schema";
@@ -270,4 +270,22 @@ test("confirm(): auto_decline не пипа вече терминална зая
 
   const [bRow] = await testDb.select().from(schema.booking).where(eq(schema.booking.id, declinedB.id));
   expect(bRow?.status).toBe("declined"); // НЕ auto_declined — терминалната следа е запазена
+});
+
+test("listMine(): hasReview е true само за резервации с вече оставено ревю", async () => {
+  const { listingId } = await vendorWithListing();
+  const st = await createTestServiceType(listingId, { kind: "full_day" });
+  const customer = await newCustomer();
+
+  const reviewed = await createTestBooking(listingId, st.id, customer.id, {
+    status: "completed", isFullDay: true, eventDate: "2020-01-01", phone: "0888000001",
+  });
+  const notReviewed = await createTestBooking(listingId, st.id, customer.id, {
+    status: "completed", isFullDay: true, eventDate: "2020-01-02", phone: "0888000002",
+  });
+  await createTestReview(reviewed.id, listingId, customer.id);
+
+  const mine = await BookingDAL.for(customer).listMine();
+  expect(mine.find((b) => b.id === reviewed.id)?.hasReview).toBe(true);
+  expect(mine.find((b) => b.id === notReviewed.id)?.hasReview).toBe(false);
 });

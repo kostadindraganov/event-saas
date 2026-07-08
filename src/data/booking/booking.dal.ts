@@ -2,7 +2,7 @@ import "server-only";
 import { and, desc, eq, inArray, lt, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { availabilityRule, blockedDate, booking, bookingServiceType, listing, user } from "@/db/schema";
+import { availabilityRule, blockedDate, booking, bookingServiceType, listing, review, user } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
 import { addMinutes, generateDaySlots, isPastDate, overlaps, todaySofia, weekdayOf } from "./slots";
 import { canCancelBooking, canModerateBooking } from "./booking.policy";
@@ -10,7 +10,7 @@ import {
   bookingCancelledEmail, bookingConfirmedEmail, bookingDeclinedEmail, bookingRequestedEmail, sendEmail,
 } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
-import type { BookingDTO, BookingRequestInput } from "./booking.dto";
+import type { BookingDTO, BookingRequestInput, MyBookingDTO } from "./booking.dto";
 
 // drizzle-orm обвива pg грешката — реалният код е в err.cause.code (както calendar.dal.ts).
 function pgCode(err: unknown): string | undefined {
@@ -167,15 +167,16 @@ export class BookingDAL {
     });
   }
 
-  async listMine(): Promise<BookingDTO[]> {
-    const rows = await db.select(bookingJoinColumns)
+  async listMine(): Promise<MyBookingDTO[]> {
+    const rows = await db.select({ ...bookingJoinColumns, reviewId: review.id })
       .from(booking)
       .innerJoin(listing, eq(booking.listingId, listing.id))
       .innerJoin(bookingServiceType, eq(booking.serviceTypeId, bookingServiceType.id))
       .innerJoin(user, eq(booking.customerId, user.id))
+      .leftJoin(review, eq(review.bookingId, booking.id))
       .where(eq(booking.customerId, this.user.id))
       .orderBy(desc(booking.createdAt));
-    return rows.map(toBookingDTO);
+    return rows.map((r) => ({ ...toBookingDTO(r), hasReview: r.reviewId !== null }));
   }
 
   // D3: ЕДНА транзакция — advisory lock → re-select(guard) → freeness guard(D2) → CAS → auto_decline(D2).

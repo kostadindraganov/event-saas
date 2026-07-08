@@ -110,6 +110,8 @@ export type BookingDTO = {
   createdAt: Date;
 };
 
+export type MyBookingDTO = BookingDTO & { hasReview: boolean };
+
 export const BookingRequestSchema = z.object({
   listingId: z.uuid(),
   serviceTypeId: z.uuid(),
