@@ -38,3 +38,39 @@ test("ask + listByListing: публичен списък връща въпрос
   expect(row?.answerText).toBeNull();
   expect(row?.answeredAt).toBeNull();
 });
+
+test("answer: owner отговаря успешно; чужд потребител → NOT_FOUND", async () => {
+  const { user, listingId } = await ownerWithListing();
+  const asker = await createTestUser();
+  cleanupIds.push(asker.id);
+  const askerUser: SessionUser = { id: asker.id, email: asker.email, name: "Питащ", isAdmin: false };
+  const q = await QaDAL.for(askerUser).ask({ listingId, body: "Има ли паркинг?" });
+
+  const stranger = await createTestUser();
+  cleanupIds.push(stranger.id);
+  const strangerUser: SessionUser = { id: stranger.id, email: stranger.email, name: "Чужд", isAdmin: false };
+  await expect(QaDAL.for(strangerUser).answer({ questionId: q.id, text: "Да" }))
+    .rejects.toMatchObject({ code: "NOT_FOUND" });
+
+  await QaDAL.for(user).answer({ questionId: q.id, text: "Да, има безплатен паркинг." });
+  const listed = await QaDAL.public().listByListing(listingId);
+  const row = listed.find((r) => r.id === q.id);
+  expect(row?.answerText).toBe("Да, има безплатен паркинг.");
+  expect(row?.answeredAt).not.toBeNull();
+});
+
+test("answer: admin (не owner) също може да отговори", async () => {
+  const { listingId } = await ownerWithListing();
+  const asker = await createTestUser();
+  cleanupIds.push(asker.id);
+  const askerUser: SessionUser = { id: asker.id, email: asker.email, name: "Питащ", isAdmin: false };
+  const q = await QaDAL.for(askerUser).ask({ listingId, body: "Ползвате ли договор?" });
+
+  const admin = await createTestUser({ isAdmin: true });
+  cleanupIds.push(admin.id);
+  const adminUser: SessionUser = { id: admin.id, email: admin.email, name: "Админ", isAdmin: true };
+  await QaDAL.for(adminUser).answer({ questionId: q.id, text: "Да, стандартен договор." });
+
+  const listed = await QaDAL.public().listByListing(listingId);
+  expect(listed.find((r) => r.id === q.id)?.answerText).toBe("Да, стандартен договор.");
+});
