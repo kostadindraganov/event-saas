@@ -507,6 +507,7 @@
       "icalGenerate": "Създай връзка",
       "icalRegenerate": "Обнови връзката",
       "icalRevoke": "Премахни",
+      "icalCancel": "Отказ",
       "icalRevokeConfirmTitle": "Да премахна ли връзката?",
       "icalRevokeConfirmDesc": "Старата връзка спира да работи. Можеш да създадеш нова по всяко време.",
       "icalCopy": "Копирай",

@@ -507,6 +507,7 @@
       "icalGenerate": "Create link",
       "icalRegenerate": "Regenerate link",
       "icalRevoke": "Remove",
+      "icalCancel": "Cancel",
       "icalRevokeConfirmTitle": "Remove the link?",
       "icalRevokeConfirmDesc": "The old link stops working. You can create a new one anytime.",
       "icalCopy": "Copy",

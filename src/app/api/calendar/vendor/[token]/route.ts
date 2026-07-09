@@ -25,6 +25,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
     headers: {
       "content-type": "text/calendar; charset=utf-8",
       "content-disposition": 'attachment; filename="event-review.ics"',
+      // bearer-token feed: никога да не се кешира от посредник (revoke трябва да е моментален)
+      "cache-control": "private, no-store",
     },
   });
 }

@@ -38,9 +38,13 @@ export function IcalFeedCard() {
 
   async function copy() {
     if (!url) return;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error(t("errorGeneric"));
+    }
   }
 
   return (
@@ -54,7 +58,7 @@ export function IcalFeedCard() {
         {url ? (
           <>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Input readOnly value={url} className="h-11 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+              <Input readOnly value={url} aria-label={t("icalTitle")} className="h-11 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
               <Button type="button" variant="outline" className="h-11 shrink-0" onClick={copy}>
                 {copied ? t("icalCopied") : t("icalCopy")}
               </Button>
@@ -73,7 +77,7 @@ export function IcalFeedCard() {
                     <AlertDialogDescription>{t("icalRevokeConfirmDesc")}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>{t("icalRevoke")}</AlertDialogCancel>
+                    <AlertDialogCancel>{t("icalCancel")}</AlertDialogCancel>
                     <AlertDialogAction onClick={() => revoke.mutate()}>{t("icalRevoke")}</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

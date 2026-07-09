@@ -22,7 +22,7 @@ beforeAll(async () => {
   const [city] = await testDb.select().from(schema.city).limit(1);
   const l = await ListingDAL.for(vendor).createDraft({ title: "Обява", categoryId: cat!.id, cityId: city!.id });
   listingId = l.id;
-  await testDb.update(schema.listing).set({ status: "published" }).where(eq(schema.listing.id, l.id));
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l.id));
   const [st] = await testDb.insert(schema.bookingServiceType).values({
     listingId, kind: "full_day", name: "Пакет", durationMinutes: null, priceFromCents: 1000, isActive: true,
   }).returning();
