@@ -85,6 +85,38 @@ test("recomputeAvgResponse: vendor reply изчислява avgResponseMinutes",
   expect(u!.avg!).toBeLessThanOrEqual(35);
 });
 
+test("recomputeAvgResponse: осреднява по 2 нишки към известна стойност (10мин + 30мин)/2=20мин", async () => {
+  // самостоятелен вендор/клиенти → без намеса от други нишки в top-50 по lastMessageAt
+  const v = await createTestUser();
+  const c1 = await createTestUser();
+  const c2 = await createTestUser();
+  const vUser: SessionUser = { id: v.id, email: v.email, name: "Вендор2", isAdmin: false };
+  const c1User: SessionUser = { id: c1.id, email: c1.email, name: "Клиент1", isAdmin: false };
+  const c2User: SessionUser = { id: c2.id, email: c2.email, name: "Клиент2", isAdmin: false };
+  await createTestSubscription(v.id, { plan: "premium", status: "active" });
+  const dal = ListingDAL.for(vUser);
+  const l = await dal.createDraft({ title: "Чат Обява Avg", categoryId: await getTestCategoryId(), cityId: await getTestCityId() });
+  await dal.submit(l.id);
+  await testDb.update(schema.listing).set({ status: "published", publishedAt: new Date() }).where(eq(schema.listing.id, l.id));
+
+  const { threadId: t1 } = await MessagingDAL.for(c1User).createInquiry({ listingId: l.id, body: "Кога1?" });
+  const { threadId: t2 } = await MessagingDAL.for(c2User).createInquiry({ listingId: l.id, body: "Кога2?" });
+  await testDb.execute(sql`update ${schema.thread} set created_at = now() - interval '10 minutes' where id = ${t1}`);
+  await testDb.execute(sql`update ${schema.thread} set created_at = now() - interval '30 minutes' where id = ${t2}`);
+
+  await MessagingDAL.for(vUser).sendMessage(t1, "Отговор1");
+  await MessagingDAL.for(vUser).sendMessage(t2, "Отговор2");
+
+  const [u] = await testDb.select({ avg: schema.user.avgResponseMinutes }).from(schema.user).where(eq(schema.user.id, v.id));
+  expect(u?.avg).not.toBeNull();
+  expect(u!.avg!).toBeGreaterThanOrEqual(18);
+  expect(u!.avg!).toBeLessThanOrEqual(22);
+
+  await cleanupTestUser(v.id);
+  await cleanupTestUser(c1.id);
+  await cleanupTestUser(c2.id);
+});
+
 // поставен последен: vendor sendMessage тук би пренастроил avgResponseMinutes и
 // би счупил горния тест, ако се изпълни преди него (recompute осреднява по всички нишки)
 test("скрита обява НЕ спира съществуващ чат; но нов createInquiry към нея → NOT_FOUND", async () => {

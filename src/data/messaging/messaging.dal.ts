@@ -237,17 +237,18 @@ export class MessagingDAL {
     await db.execute(sql`
       update "user" set avg_response_minutes = sub.avg_min
       from (
-        select round(avg(extract(epoch from (fv.first_reply - t.created_at)) / 60))::int as avg_min
-        from (
+        with t as (
           select id, created_at from ${thread}
           where vendor_id = ${me}
           order by last_message_at desc
           limit 50
-        ) t
+        )
+        select round(avg(extract(epoch from (fv.first_reply - t.created_at)) / 60))::int as avg_min
+        from t
         join (
           select thread_id, min(created_at) as first_reply
           from ${message}
-          where sender_id = ${me}
+          where sender_id = ${me} and thread_id in (select id from t)
           group by thread_id
         ) fv on fv.thread_id = t.id
       ) sub
