@@ -501,7 +501,18 @@
     "calendarPage": {
       "navLabel": "Календар",
       "title": "Календар",
-      "noListings": "Нямаш публикувани обяви за управление на календар."
+      "noListings": "Нямаш публикувани обяви за управление на календар.",
+      "icalTitle": "Календарен feed",
+      "icalDesc": "Абонирай се за потвърдените си резервации в Google/Apple/Outlook. Връзката е лична — не я споделяй.",
+      "icalGenerate": "Създай връзка",
+      "icalRegenerate": "Обнови връзката",
+      "icalRevoke": "Премахни",
+      "icalRevokeConfirmTitle": "Да премахна ли връзката?",
+      "icalRevokeConfirmDesc": "Старата връзка спира да работи. Можеш да създадеш нова по всяко време.",
+      "icalCopy": "Копирай",
+      "icalCopied": "Копирано",
+      "icalNone": "Още нямаш връзка.",
+      "errorGeneric": "Нещо се обърка. Опитай пак."
     },
     "serviceType": {
       "title": "Услуги",

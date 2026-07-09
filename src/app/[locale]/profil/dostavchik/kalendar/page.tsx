@@ -7,6 +7,7 @@ import { ServiceTypeManager } from "@/components/booking/service-type-manager";
 import { AvailabilityEditor } from "@/components/booking/availability-editor";
 import { BlockedDatesManager } from "@/components/booking/blocked-dates-manager";
 import { IncomingBookings } from "@/components/booking/incoming-bookings";
+import { IcalFeedCard } from "@/components/booking/ical-feed-card";
 
 export default async function KalendarPage({
   params,
@@ -57,6 +58,7 @@ export default async function KalendarPage({
               <BlockedDatesManager listingId={selectedId} />
             </div>
           )}
+          <IcalFeedCard />
         </>
       )}
     </main>

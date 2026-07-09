@@ -29,6 +29,9 @@ export const bookingRouter = createTRPCRouter({
   decline: protectedProcedure.input(DeclineSchema).mutation(({ ctx, input }) => BookingDAL.for(ctx.user).decline(input.id, input.reason)),
   cancel: protectedProcedure.input(CancelSchema).mutation(({ ctx, input }) => BookingDAL.for(ctx.user).cancel(input.id, input.reason)),
   listMine: protectedProcedure.query(({ ctx }) => BookingDAL.for(ctx.user).listMine()),
+  icalFeed: protectedProcedure.query(({ ctx }) => CalendarDAL.for(ctx.user).getIcalUrl()),
+  regenerateIcalToken: protectedProcedure.mutation(({ ctx }) => CalendarDAL.for(ctx.user).regenerateIcalToken()),
+  revokeIcalToken: protectedProcedure.mutation(({ ctx }) => CalendarDAL.for(ctx.user).revokeIcalToken()),
 
   availability: createTRPCRouter({
     month: publicProcedure

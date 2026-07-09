@@ -501,7 +501,18 @@
     "calendarPage": {
       "navLabel": "Calendar",
       "title": "Calendar",
-      "noListings": "You have no published listings to manage a calendar for."
+      "noListings": "You have no published listings to manage a calendar for.",
+      "icalTitle": "Calendar feed",
+      "icalDesc": "Subscribe to your confirmed bookings in Google/Apple/Outlook. This link is private — do not share it.",
+      "icalGenerate": "Create link",
+      "icalRegenerate": "Regenerate link",
+      "icalRevoke": "Remove",
+      "icalRevokeConfirmTitle": "Remove the link?",
+      "icalRevokeConfirmDesc": "The old link stops working. You can create a new one anytime.",
+      "icalCopy": "Copy",
+      "icalCopied": "Copied",
+      "icalNone": "You don't have a link yet.",
+      "errorGeneric": "Something went wrong. Please try again."
     },
     "serviceType": {
       "title": "Services",
