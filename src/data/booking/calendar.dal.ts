@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import { and, asc, count, desc, eq, gte, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { revalidateTag } from "next/cache";
@@ -9,10 +10,11 @@ import { canManageCalendar } from "./booking.policy";
 import { generateDaySlots, weekdayOf } from "./slots";
 import type {
   AvailabilityDayDTO, AvailabilityRuleDTO, BlockedDateCreateInput, BlockedDateDTO,
-  BookingDTO, ServiceTypeCreateInput, ServiceTypeDTO, ServiceTypeUpdateInput,
+  BookingDTO, IcalBookingRow, ServiceTypeCreateInput, ServiceTypeDTO, ServiceTypeUpdateInput,
   SetAvailabilityInput, SlotDTO,
 } from "./booking.dto";
 import { pgCode } from "@/data/pg";
+import { getBaseUrl } from "@/lib/seo";
 
 type ServiceTypeRow = typeof bookingServiceType.$inferSelect;
 type AvailabilityRuleRow = typeof availabilityRule.$inferSelect;
@@ -29,6 +31,10 @@ function toAvailabilityRuleDTO(r: AvailabilityRuleRow): AvailabilityRuleDTO {
 }
 function toBlockedDateDTO(r: BlockedDateRow): BlockedDateDTO {
   return { id: r.id, listingId: r.listingId, date: r.date, note: r.note };
+}
+
+function icalUrl(token: string): string {
+  return `${getBaseUrl()}/api/calendar/vendor/${token}.ics`;
 }
 
 // ponytail: локален mapper, умишлено дублиран и в booking.dal.ts (T8) — виж флага в началото на секцията.
@@ -165,6 +171,52 @@ export class CalendarDAL {
       .where(eq(listing.ownerId, this.user.id))
       .orderBy(desc(booking.createdAt));
     return rows.map(toBookingDTO);
+  }
+
+  async getIcalUrl(): Promise<{ url: string | null }> {
+    const [row] = await db.select({ token: user.icalToken }).from(user).where(eq(user.id, this.user.id));
+    return { url: row?.token ? icalUrl(row.token) : null };
+  }
+
+  async regenerateIcalToken(): Promise<{ url: string }> {
+    // ponytail: 256-bit случаен токен; колизия с unique е практически невъзможна (не guard-ваме 23505)
+    const token = randomBytes(32).toString("base64url");
+    await db.update(user).set({ icalToken: token }).where(eq(user.id, this.user.id));
+    return { url: icalUrl(token) };
+  }
+
+  async revokeIcalToken(): Promise<{ ok: true }> {
+    await db.update(user).set({ icalToken: null }).where(eq(user.id, this.user.id));
+    return { ok: true };
+  }
+
+  static async confirmedBookingsForIcalToken(token: string): Promise<IcalBookingRow[] | null> {
+    const [owner] = await db.select({ id: user.id }).from(user).where(eq(user.icalToken, token));
+    if (!owner) return null;
+    const rows = await db
+      .select({
+        id: booking.id,
+        listingId: booking.listingId,
+        listingTitle: listing.title,
+        serviceName: bookingServiceType.name,
+        customerName: user.name,
+        isFullDay: booking.isFullDay,
+        eventDate: booking.eventDate,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+      })
+      .from(booking)
+      .innerJoin(listing, eq(booking.listingId, listing.id))
+      .innerJoin(bookingServiceType, eq(booking.serviceTypeId, bookingServiceType.id))
+      .innerJoin(user, eq(booking.customerId, user.id))
+      .where(and(eq(listing.ownerId, owner.id), eq(booking.status, "confirmed")))
+      .orderBy(asc(booking.eventDate));
+    // pg "time" → "HH:MM:SS"; DTO/iCal очаква "HH:MM"
+    return rows.map((r) => ({
+      ...r,
+      startTime: r.startTime?.slice(0, 5) ?? null,
+      endTime: r.endTime?.slice(0, 5) ?? null,
+    }));
   }
 }
 

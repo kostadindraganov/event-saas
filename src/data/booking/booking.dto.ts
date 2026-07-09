@@ -139,3 +139,15 @@ export const SlotsDayInput = z.object({
   serviceTypeId: z.uuid(),
   date: isoDate,
 });
+
+export type IcalBookingRow = {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  serviceName: string;
+  customerName: string;
+  isFullDay: boolean;
+  eventDate: string;
+  startTime: string | null;
+  endTime: string | null;
+};
