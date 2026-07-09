@@ -3,8 +3,10 @@ import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { user, session, account } from "@/db/schema/auth";
 import { booking } from "@/db/schema/booking";
-import { listing } from "@/db/schema/catalog";
-import { message } from "@/db/schema/messaging";
+import { listing, savedListing } from "@/db/schema/catalog";
+import { thread, message } from "@/db/schema/messaging";
+import { review, question, report } from "@/db/schema/reviews";
+import { subscription } from "@/db/schema/billing";
 import { polarClient, hasPolar } from "@/lib/auth";
 
 export class AccountDAL {
@@ -81,5 +83,35 @@ export class AccountDAL {
         .deleteExternal({ externalId: userId, anonymize: true })
         .catch((e) => console.error("Polar customer erase failed", e));
     }
+  }
+
+  // GDPR data portability — read-only dump, изключва credentials (password hash, session token, account OAuth токени)
+  static async exportData(userId: string) {
+    const ownListingIds = db.select({ id: listing.id }).from(listing).where(eq(listing.ownerId, userId));
+
+    const [profile] = await db.select().from(user).where(eq(user.id, userId));
+    const listings = await db.select().from(listing).where(eq(listing.ownerId, userId));
+    const bookingsAsCustomer = await db.select().from(booking).where(eq(booking.customerId, userId));
+    const bookingsAsVendor = await db.select().from(booking).where(inArray(booking.listingId, ownListingIds));
+    const reviews = await db.select().from(review).where(eq(review.authorId, userId));
+    const questions = await db.select().from(question).where(eq(question.authorId, userId));
+    const threads = await db.select().from(thread).where(or(eq(thread.customerId, userId), eq(thread.vendorId, userId)));
+    const sentMessages = await db.select().from(message).where(eq(message.senderId, userId));
+    const saved = await db.select().from(savedListing).where(eq(savedListing.userId, userId));
+    const [subscriptionRow] = await db.select().from(subscription).where(eq(subscription.userId, userId));
+    const reports = await db.select().from(report).where(eq(report.reporterId, userId));
+
+    return {
+      profile: profile ?? null,
+      listings,
+      bookingsAsCustomer,
+      bookingsAsVendor,
+      reviews,
+      questions,
+      messages: { threads, sent: sentMessages },
+      saved,
+      subscription: subscriptionRow ?? null,
+      reports,
+    };
   }
 }

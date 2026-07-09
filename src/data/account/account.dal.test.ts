@@ -146,3 +146,37 @@ test("втори erase → CONFLICT ALREADY_ANONYMIZED", async () => {
   await AccountDAL.eraseAccount(uid);
   await expect(AccountDAL.eraseAccount(uid)).rejects.toMatchObject({ message: "ALREADY_ANONYMIZED" });
 });
+
+test("exportData връща всички секции за потребителя", async () => {
+  const vendor = await newUser();
+  const uid = await newUser();
+  const { listingId, serviceTypeId } = await bookableListing(uid);
+  await testDb.insert(schema.savedListing).values({ userId: uid, listingId });
+  // резервация като клиент (при друг вендор) + резервация като вендор (входяща от друг клиент)
+  const { listingId: vendorListingId, serviceTypeId: vendorServiceTypeId } = await bookableListing(vendor);
+  await createTestBooking(vendorListingId, vendorServiceTypeId, uid, {
+    isFullDay: true,
+    eventDate: futureDateStr(),
+    phone: "0888",
+  });
+  const incoming = await createTestBooking(listingId, serviceTypeId, vendor, {
+    status: "completed",
+    isFullDay: true,
+    eventDate: "2020-01-01",
+    phone: "0888",
+  });
+  await createTestReview(incoming.id, listingId, uid, {});
+
+  const dump = await AccountDAL.exportData(uid);
+
+  expect(dump.profile?.email).toContain("@event-review.test");
+  expect(dump.saved).toHaveLength(1);
+  expect(dump.listings).toHaveLength(1);
+  expect(dump.bookingsAsCustomer).toHaveLength(1);
+  expect(dump.bookingsAsVendor).toHaveLength(1);
+  expect(dump.reviews).toHaveLength(1);
+  expect(dump).toHaveProperty("questions");
+  expect(dump).toHaveProperty("messages");
+  expect(dump).toHaveProperty("subscription");
+  expect(dump).toHaveProperty("reports");
+});
