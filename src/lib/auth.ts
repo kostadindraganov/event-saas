@@ -30,9 +30,9 @@ const hasGoogle = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_S
 // ponytail: само POLAR_ACCESS_TOKEN гейтва плъгина (като hasGoogle) — ако 4-те
 // POLAR_PRODUCT_* липсват, checkout() ще получи undefined productId; приемлив риск
 // за local/dev без завършен Polar sandbox setup, ще гръмне ясно при реален checkout.
-const hasPolar = !!process.env.POLAR_ACCESS_TOKEN;
+export const hasPolar = !!process.env.POLAR_ACCESS_TOKEN;
 
-const polarClient = hasPolar
+export const polarClient = hasPolar
   ? new Polar({
       accessToken: process.env.POLAR_ACCESS_TOKEN!,
       server: (process.env.POLAR_ENV as "sandbox" | "production" | undefined) ?? "sandbox",
