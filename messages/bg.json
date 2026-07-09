@@ -602,6 +602,7 @@
     "editCta": "Редактирай ревюто",
     "editTitle": "Редакция на ревю",
     "errorEditWindowClosed": "Срокът за редакция изтече (48 часа).",
+    "reviewImageFallbackAlt": "Снимка от ревю на {author}",
     "form": {
       "cta": "Напиши ревю",
       "title": "Напиши ревю",

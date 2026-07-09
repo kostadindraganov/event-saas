@@ -265,12 +265,12 @@ test("listByListing(): връща само visible ревюта с images, по�
     title: "По-старо", createdAt: new Date(Date.now() - 60 * 60 * 1000),
   });
   const newer = await createTestReview(b2, listingId, customer.id, { title: "По-ново" });
-  await testDb.insert(schema.reviewImage).values({ reviewId: newer.id, cfImageId: "cf-test-image-1" });
+  await testDb.insert(schema.reviewImage).values({ reviewId: newer.id, cfImageId: "cf-test-image-1", alt: "Декорация на залата" });
   await createTestReview(hiddenBookingId, listingId, customer.id, { title: "Скрито", status: "hidden_by_admin" });
 
   const result = await ReviewDAL.public().listByListing(listingId);
   expect(result.map((r) => r.title)).toEqual(["По-ново", "По-старо"]);
-  expect(result[0]?.images).toEqual([{ id: expect.any(String), cfImageId: "cf-test-image-1" }]);
+  expect(result[0]?.images).toEqual([{ id: expect.any(String), cfImageId: "cf-test-image-1", alt: "Декорация на залата" }]);
   expect(result[1]?.images).toEqual([]);
   expect(result[0]?.ratingOverall).toBeCloseTo(5, 2);
 });

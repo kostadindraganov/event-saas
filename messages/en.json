@@ -602,6 +602,7 @@
     "editCta": "Edit review",
     "editTitle": "Edit review",
     "errorEditWindowClosed": "The edit window has closed (48 hours).",
+    "reviewImageFallbackAlt": "Photo from {author}'s review",
     "form": {
       "cta": "Write a review",
       "title": "Write a review",

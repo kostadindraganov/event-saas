@@ -46,6 +46,7 @@ export const reviewImage = pgTable("review_image", {
   id: uuid("id").primaryKey().defaultRandom(),
   reviewId: uuid("review_id").notNull().references(() => review.id, { onDelete: "cascade" }),
   cfImageId: text("cf_image_id").notNull(),
+  alt: text("alt"),
 });
 
 export const question = pgTable(

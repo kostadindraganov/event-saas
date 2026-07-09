@@ -61,11 +61,12 @@ function toPublicDTO(r: ReviewRow, images: ReviewImageDTO[]): ReviewPublicDTO {
 async function imagesForIds(reviewIds: string[]): Promise<Map<string, ReviewImageDTO[]>> {
   const map = new Map<string, ReviewImageDTO[]>();
   if (reviewIds.length === 0) return map;
-  const imageRows = await db.select({ id: reviewImage.id, reviewId: reviewImage.reviewId, cfImageId: reviewImage.cfImageId })
-    .from(reviewImage).where(inArray(reviewImage.reviewId, reviewIds));
+  const imageRows = await db.select({
+    id: reviewImage.id, reviewId: reviewImage.reviewId, cfImageId: reviewImage.cfImageId, alt: reviewImage.alt,
+  }).from(reviewImage).where(inArray(reviewImage.reviewId, reviewIds));
   for (const img of imageRows) {
     const list = map.get(img.reviewId) ?? [];
-    list.push({ id: img.id, cfImageId: img.cfImageId });
+    list.push({ id: img.id, cfImageId: img.cfImageId, alt: img.alt });
     map.set(img.reviewId, list);
   }
   return map;

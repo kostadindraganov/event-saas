@@ -1,0 +1,1 @@
+ALTER TABLE "review_image" ADD COLUMN "alt" text;

@@ -38,7 +38,7 @@ export class ReviewMediaDAL {
     const [row] = await db.insert(reviewImage).values({ reviewId, cfImageId }).returning();
     if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     revalidateTag(`listing:${owned.listingSlug}`, { expire: 0 });
-    return { id: row.id, cfImageId: row.cfImageId };
+    return { id: row.id, cfImageId: row.cfImageId, alt: row.alt };
   }
 
   async remove(imageId: string): Promise<void> {

@@ -42,7 +42,12 @@ export async function ReviewsSection({ reviews }: { reviews: ReviewPublicDTO[] }
                     const url = cfImageUrl(img.cfImageId, "public");
                     return url ? (
                       // eslint-disable-next-line @next/next/no-img-element -- CF variants поемат resize-а
-                      <img key={img.id} src={url} alt="" className="aspect-square w-full rounded-md border object-cover" />
+                      <img
+                        key={img.id}
+                        src={url}
+                        alt={img.alt ?? t("reviewImageFallbackAlt", { author: r.authorName })}
+                        className="aspect-square w-full rounded-md border object-cover"
+                      />
                     ) : null;
                   })}
                 </div>

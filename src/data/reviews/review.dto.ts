@@ -6,7 +6,7 @@ export const SUB_RATING_KEYS = [
   "quality", "communication", "professionalism", "value", "flexibility",
 ] as const;
 
-export type ReviewImageDTO = { id: string; cfImageId: string };
+export type ReviewImageDTO = { id: string; cfImageId: string; alt: string | null };
 
 // публичен изглед (obiava страница + JSON-LD)
 export type ReviewPublicDTO = {
