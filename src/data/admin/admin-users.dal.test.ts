@@ -78,7 +78,24 @@ test("listUsers(): връща deletedAt за soft-deleted, null за актив�
   const activeId = await newUser();
   const blockedId = await newUser();
   await AdminDAL.blockUser(activeId, blockedId);
-  const all = await AdminDAL.listUsers();
-  expect(all.find((u) => u.id === blockedId)?.deletedAt).not.toBeNull(); // id-scoped
-  expect(all.find((u) => u.id === activeId)?.deletedAt).toBeNull();
+  const { items } = await AdminDAL.listUsers();
+  expect(items.find((u) => u.id === blockedId)?.deletedAt).not.toBeNull(); // id-scoped
+  expect(items.find((u) => u.id === activeId)?.deletedAt).toBeNull();
+});
+
+test("listUsers({page,limit}): limit=1 връща 1 ред по created_at DESC + коректен total; page 2 пропуска реда от page 1", async () => {
+  const newerId = await newUser();
+  // far-future createdAt → гарантирано глобално най-нов ред (споделена таблица между тестове)
+  await testDb.update(schema.user)
+    .set({ createdAt: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000) })
+    .where(eq(schema.user.id, newerId));
+
+  const p1 = await AdminDAL.listUsers({ page: 1, limit: 1 });
+  expect(p1.items.length).toBe(1);
+  expect(p1.items[0]?.id).toBe(newerId);
+  expect(p1.total).toBeGreaterThanOrEqual(1);
+  expect(p1.limit).toBe(1);
+
+  const p2 = await AdminDAL.listUsers({ page: 2, limit: 1 });
+  expect(p2.items.some((u) => u.id === newerId)).toBe(false); // offset прескочи page 1 реда
 });

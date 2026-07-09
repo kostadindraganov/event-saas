@@ -13,8 +13,8 @@ import { recomputeListingRating } from "@/data/reviews/aggregate";
 import { listingApprovedEmail, listingRejectedEmail, sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
 import type {
-  AdminListingRowDTO,
-  AdminUserDTO,
+  AdminListingListDTO,
+  AdminUserListDTO,
   AdminDashboardStatsDTO,
   BillingSettingsInput,
   CategoryCreateInput,
@@ -59,7 +59,17 @@ async function notifyListingRejected(userId: string, listingTitle: string, reaso
 export class AdminDAL {
   // adminProcedure вече гарантира admin → чисти static методи, без for(user) фабрика.
 
-  static async listListings({ status }: { status: "pending_approval" | "published" }): Promise<AdminListingRowDTO[]> {
+  // Offset-пагинация (Задача 6) — без limit/offset това е unbounded scan на цялата опашка при 100k+ обяви.
+  // limit clamp-ва в [1,100], page в [1,∞); total идва от отделен count() със същия WHERE (огледално на
+  // ListingDAL.public().list, public-listing.dal.ts:220-225).
+  static async listListings(
+    { status, page = 1, limit = 50 }: { status: "pending_approval" | "published"; page?: number; limit?: number },
+  ): Promise<AdminListingListDTO> {
+    const cappedLimit = Math.min(Math.max(limit, 1), 100);
+    const cappedPage = Math.max(page, 1);
+    const offset = (cappedPage - 1) * cappedLimit;
+    const where = eq(listing.status, status);
+
     const rows = await db
       .select({
         id: listing.id,
@@ -77,10 +87,19 @@ export class AdminDAL {
       .innerJoin(category, eq(listing.categoryId, category.id))
       .innerJoin(city, eq(listing.cityId, city.id))
       .innerJoin(user, eq(listing.ownerId, user.id))
-      .where(eq(listing.status, status))
-      .orderBy(desc(listing.createdAt));
+      .where(where)
+      .orderBy(desc(listing.createdAt))
+      .limit(cappedLimit)
+      .offset(offset);
+    const [totalRow] = await db.select({ n: count() }).from(listing).where(where);
+
     // status е стеснен от WHERE-а към param-а; overriding-ва широкия listing.status enum (noUncheckedIndexedAccess narrowing gap)
-    return rows.map((r) => ({ ...r, status, createdAt: r.createdAt.toISOString() }));
+    return {
+      items: rows.map((r) => ({ ...r, status, createdAt: r.createdAt.toISOString() })),
+      total: totalRow?.n ?? 0,
+      page: cappedPage,
+      limit: cappedLimit,
+    };
   }
 
   // pending_approval → published. Entitlement е АВТОРИТЕТЕН тук (единственият преход, който
@@ -142,7 +161,12 @@ export class AdminDAL {
     return { slug: updated.slug, status: updated.status };
   }
 
-  static async listUsers(): Promise<AdminUserDTO[]> {
+  // Offset-пагинация (Задача 6) — sort ползва user_created_at_idx (Задача 1).
+  static async listUsers({ page = 1, limit = 50 }: { page?: number; limit?: number } = {}): Promise<AdminUserListDTO> {
+    const cappedLimit = Math.min(Math.max(limit, 1), 100);
+    const cappedPage = Math.max(page, 1);
+    const offset = (cappedPage - 1) * cappedLimit;
+
     const rows = await db
       .select({
         id: user.id,
@@ -153,15 +177,24 @@ export class AdminDAL {
         createdAt: user.createdAt,
       })
       .from(user)
-      .orderBy(desc(user.createdAt));
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      isAdmin: r.isAdmin ?? false,
-      createdAt: r.createdAt.toISOString(),
-      deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null,
-    }));
+      .orderBy(desc(user.createdAt))
+      .limit(cappedLimit)
+      .offset(offset);
+    const [totalRow] = await db.select({ n: count() }).from(user);
+
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        isAdmin: r.isAdmin ?? false,
+        createdAt: r.createdAt.toISOString(),
+        deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null,
+      })),
+      total: totalRow?.n ?? 0,
+      page: cappedPage,
+      limit: cappedLimit,
+    };
   }
 
   // Блокиране = soft-delete (deletedAt) + инвалидация на живите сесии. Enforcement-ът е в

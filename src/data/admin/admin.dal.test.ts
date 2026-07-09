@@ -101,7 +101,30 @@ test("listListings({status}): връща pending, не published — id-scoped",
   await dal.submit(published.id);
   await AdminDAL.approve(published.id);
 
-  const rows = await AdminDAL.listListings({ status: "pending_approval" });
-  expect(rows.some((r) => r.id === pending.id)).toBe(true);
-  expect(rows.some((r) => r.id === published.id)).toBe(false);
+  const { items } = await AdminDAL.listListings({ status: "pending_approval" });
+  expect(items.some((r) => r.id === pending.id)).toBe(true);
+  expect(items.some((r) => r.id === published.id)).toBe(false);
+});
+
+test("listListings({status,limit,offset}): limit=1 връща 1 ред + коректен total; page 2 пропуска реда от page 1", async () => {
+  const { user } = await newOwner();
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const dal = ListingDAL.for(user);
+  const a = await dal.createDraft({ title: "Пагинация А", categoryId, cityId });
+  await dal.submit(a.id);
+  const b = await dal.createDraft({ title: "Пагинация Б", categoryId, cityId });
+  await dal.submit(b.id);
+
+  const p1 = await AdminDAL.listListings({ status: "pending_approval", page: 1, limit: 1 });
+  expect(p1.items.length).toBe(1);
+  expect(p1.total).toBeGreaterThanOrEqual(2); // споделена опашка с други тестове, id-scoped по-долу
+
+  const allIds = new Set<string>();
+  for (let page = 1; page <= p1.total; page++) {
+    const { items } = await AdminDAL.listListings({ status: "pending_approval", page, limit: 1 });
+    for (const r of items) allIds.add(r.id);
+  }
+  expect(allIds.has(a.id)).toBe(true);
+  expect(allIds.has(b.id)).toBe(true);
 });

@@ -39,6 +39,15 @@ export type AdminListingRowDTO = {
   rejectionReason: string | null;
 };
 
+// Offset-пагинация (Задача 6, 100k-user scale) — огледална на PublicListingFilterInput/Page (public.dto.ts).
+export const AdminPaginationSchema = z.object({
+  page: z.number().int().min(1).default(1),
+  limit: z.number().int().min(1).max(100).default(50),
+});
+export type AdminPaginationInput = z.infer<typeof AdminPaginationSchema>;
+export type AdminUserListDTO = { items: AdminUserDTO[]; total: number; page: number; limit: number };
+export type AdminListingListDTO = { items: AdminListingRowDTO[]; total: number; page: number; limit: number };
+
 export type AdminDashboardStatsDTO = {
   pendingListings: number;
   publishedListings: number;

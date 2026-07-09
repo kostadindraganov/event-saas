@@ -327,7 +327,10 @@
       "rejectSuccess": "The listing was rejected.",
       "removeSuccess": "The listing was removed.",
       "errorLimitReached": "The vendor's plan limit is reached — the listing stays pending.",
-      "errorGeneric": "Error. Please try again."
+      "errorGeneric": "Error. Please try again.",
+      "pagePrev": "Previous",
+      "pageNext": "Next",
+      "pageOf": "Page {page} of {totalPages}"
     },
     "users": {
       "title": "Users",
@@ -347,7 +350,10 @@
       "cannotBlockSelf": "You can't block your own account.",
       "cancel": "Cancel",
       "errorGeneric": "Error. Please try again.",
-      "successUpdated": "The change was saved."
+      "successUpdated": "The change was saved.",
+      "pagePrev": "Previous",
+      "pageNext": "Next",
+      "pageOf": "Page {page} of {totalPages}"
     },
     "settings": {
       "title": "Billing settings",

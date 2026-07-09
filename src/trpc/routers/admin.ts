@@ -13,6 +13,7 @@ import {
   CityCreateSchema,
   CityUpdateSchema,
   ReportResolveSchema,
+  AdminPaginationSchema,
 } from "@/data/admin/admin.dto";
 
 const byId = z.object({ id: z.uuid() });
@@ -29,8 +30,8 @@ export const adminRouter = createTRPCRouter({
 
   listing: createTRPCRouter({
     list: adminProcedure
-      .input(z.object({ status: z.enum(["pending_approval", "published"]) }))
-      .query(({ input }) => AdminDAL.listListings({ status: input.status })),
+      .input(z.object({ status: z.enum(["pending_approval", "published"]) }).extend(AdminPaginationSchema.shape))
+      .query(({ input }) => AdminDAL.listListings(input)),
     approve: adminProcedure.input(byId).mutation(async ({ input }) => {
       const r = await AdminDAL.approve(input.id);
       revalidateListings();
@@ -54,7 +55,7 @@ export const adminRouter = createTRPCRouter({
   }),
 
   user: createTRPCRouter({
-    list: adminProcedure.query(() => AdminDAL.listUsers()),
+    list: adminProcedure.input(AdminPaginationSchema).query(({ input }) => AdminDAL.listUsers(input)),
     setAdmin: adminProcedure
       .input(byUserId.extend({ isAdmin: z.boolean() }))
       .mutation(({ ctx, input }) => AdminDAL.setAdmin(ctx.user.id, input.id, input.isAdmin)),

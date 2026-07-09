@@ -156,40 +156,63 @@ function ModerationRow({ row }: { row: AdminListingRowDTO }) {
   );
 }
 
+const PAGE_LIMIT = 50;
+
 export function ModerationQueue() {
   const t = useTranslations("Admin.pending");
   const trpc = useTRPC();
   const [tab, setTab] = useState<Tab>("pending_approval");
-  const { data, isLoading } = useQuery(trpc.admin.listing.list.queryOptions({ status: tab }));
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useQuery(trpc.admin.listing.list.queryOptions({ status: tab, page, limit: PAGE_LIMIT }));
+
+  function switchTab(next: Tab) {
+    setTab(next);
+    setPage(1); // смяна на опашката ресетва пагинацията
+  }
+
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_LIMIT)) : 1;
 
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Button variant={tab === "pending_approval" ? "default" : "outline"} className="h-11" onClick={() => setTab("pending_approval")}>
+        <Button variant={tab === "pending_approval" ? "default" : "outline"} className="h-11" onClick={() => switchTab("pending_approval")}>
           {t("tabPending")}
         </Button>
-        <Button variant={tab === "published" ? "default" : "outline"} className="h-11" onClick={() => setTab("published")}>
+        <Button variant={tab === "published" ? "default" : "outline"} className="h-11" onClick={() => switchTab("published")}>
           {t("tabPublished")}
         </Button>
       </div>
-      {isLoading ? null : !data || data.length === 0 ? (
+      {isLoading ? null : !data || data.items.length === 0 ? (
         <p className="text-muted-foreground">{t("empty")}</p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("columnTitle")}</TableHead>
-              <TableHead>{t("columnCategory")}</TableHead>
-              <TableHead>{t("columnCity")}</TableHead>
-              <TableHead>{t("columnOwner")}</TableHead>
-              <TableHead>{t("columnCreated")}</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((row) => <ModerationRow key={row.id} row={row} />)}
-          </TableBody>
-        </Table>
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("columnTitle")}</TableHead>
+                <TableHead>{t("columnCategory")}</TableHead>
+                <TableHead>{t("columnCity")}</TableHead>
+                <TableHead>{t("columnOwner")}</TableHead>
+                <TableHead>{t("columnCreated")}</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.items.map((row) => <ModerationRow key={row.id} row={row} />)}
+            </TableBody>
+          </Table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3">
+              <Button variant="outline" className="h-11" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                {t("pagePrev")}
+              </Button>
+              <span className="text-sm text-muted-foreground">{t("pageOf", { page, totalPages })}</span>
+              <Button variant="outline" className="h-11" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                {t("pageNext")}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

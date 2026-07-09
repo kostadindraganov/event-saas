@@ -327,7 +327,10 @@
       "rejectSuccess": "Обявата е отказана.",
       "removeSuccess": "Обявата е премахната.",
       "errorLimitReached": "Лимитът на плана на доставчика е достигнат — обявата остава чакаща.",
-      "errorGeneric": "Грешка. Опитай пак."
+      "errorGeneric": "Грешка. Опитай пак.",
+      "pagePrev": "Предишна",
+      "pageNext": "Следваща",
+      "pageOf": "Страница {page} от {totalPages}"
     },
     "users": {
       "title": "Потребители",
@@ -347,7 +350,10 @@
       "cannotBlockSelf": "Не можеш да блокираш собствения си акаунт.",
       "cancel": "Отказ",
       "errorGeneric": "Грешка. Опитай пак.",
-      "successUpdated": "Промяната е запазена."
+      "successUpdated": "Промяната е запазена.",
+      "pagePrev": "Предишна",
+      "pageNext": "Следваща",
+      "pageOf": "Страница {page} от {totalPages}"
     },
     "settings": {
       "title": "Настройки на billing",

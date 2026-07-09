@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -124,46 +125,63 @@ function BlockAction({ row, isSelf }: { row: AdminUserDTO; isSelf: boolean }) {
   );
 }
 
+const PAGE_LIMIT = 50;
+
 export function UsersTable({ currentUserId }: { currentUserId: string }) {
   const t = useTranslations("Admin.users");
   const locale = useLocale();
   const trpc = useTRPC();
-  const { data, isLoading } = useQuery(trpc.admin.user.list.queryOptions());
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useQuery(trpc.admin.user.list.queryOptions({ page, limit: PAGE_LIMIT }));
 
   if (isLoading || !data) return null;
+  const totalPages = Math.max(1, Math.ceil(data.total / PAGE_LIMIT));
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>{t("columnName")}</TableHead>
-          <TableHead>{t("columnEmail")}</TableHead>
-          <TableHead>{t("columnJoined")}</TableHead>
-          <TableHead>{t("columnAdmin")}</TableHead>
-          <TableHead>{t("columnStatus")}</TableHead>
-          <TableHead />
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {data.map((row) => (
-          <TableRow key={row.id}>
-            <TableCell>{row.name}</TableCell>
-            <TableCell>{row.email}</TableCell>
-            <TableCell>{new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(row.createdAt))}</TableCell>
-            <TableCell>
-              <AdminToggle row={row} />
-            </TableCell>
-            <TableCell>
-              <Badge variant={row.deletedAt ? "destructive" : "default"}>
-                {row.deletedAt ? t("statusBlocked") : t("statusActive")}
-              </Badge>
-            </TableCell>
-            <TableCell>
-              <BlockAction row={row} isSelf={row.id === currentUserId} />
-            </TableCell>
+    <div className="space-y-3">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t("columnName")}</TableHead>
+            <TableHead>{t("columnEmail")}</TableHead>
+            <TableHead>{t("columnJoined")}</TableHead>
+            <TableHead>{t("columnAdmin")}</TableHead>
+            <TableHead>{t("columnStatus")}</TableHead>
+            <TableHead />
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {data.items.map((row) => (
+            <TableRow key={row.id}>
+              <TableCell>{row.name}</TableCell>
+              <TableCell>{row.email}</TableCell>
+              <TableCell>{new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(row.createdAt))}</TableCell>
+              <TableCell>
+                <AdminToggle row={row} />
+              </TableCell>
+              <TableCell>
+                <Badge variant={row.deletedAt ? "destructive" : "default"}>
+                  {row.deletedAt ? t("statusBlocked") : t("statusActive")}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <BlockAction row={row} isSelf={row.id === currentUserId} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="outline" className="h-11" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            {t("pagePrev")}
+          </Button>
+          <span className="text-sm text-muted-foreground">{t("pageOf", { page, totalPages })}</span>
+          <Button variant="outline" className="h-11" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            {t("pageNext")}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
