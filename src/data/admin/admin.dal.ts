@@ -478,21 +478,31 @@ export class AdminDAL {
       if (rpt.status !== "open") throw new TRPCError({ code: "CONFLICT", message: "ALREADY_RESOLVED" });
 
       if (input.action !== "dismiss") {
+        // CAS mirrors the listing branch: hide only a visible target, remove a visible|hidden one.
+        // remove is a ratchet — a removed review/question must NEVER go back to hidden_by_admin.
+        const fromStatuses = input.action === "hide" ? (["visible"] as const) : (["visible", "hidden_by_admin"] as const);
         if (rpt.targetType === "review") {
+          // existence SELECT distinguishes a genuinely-missing target (NOT_FOUND, rollback) from a
+          // present-but-non-actionable one (CONFLICT below); listingId is also needed for recompute.
           const [rev] = await tx.select({ listingId: review.listingId }).from(review).where(eq(review.id, rpt.targetId));
           if (!rev) throw new TRPCError({ code: "NOT_FOUND" });
-          await tx.update(review)
+          const [updated] = await tx.update(review)
             .set({ status: input.action === "hide" ? "hidden_by_admin" : "removed" })
-            .where(eq(review.id, rpt.targetId));
+            .where(and(eq(review.id, rpt.targetId), inArray(review.status, fromStatuses)))
+            .returning({ id: review.id });
+          if (!updated) throw new TRPCError({ code: "CONFLICT", message: "TARGET_NOT_ACTIONABLE" });
+          // recompute + slug only after a confirmed CAS — a non-actionable review must not recompute
           await recomputeListingRating(tx, rev.listingId);
           const [l] = await tx.select({ slug: listing.slug }).from(listing).where(eq(listing.id, rev.listingId));
           affectedSlug = l?.slug ?? null;
         } else if (rpt.targetType === "question") {
-          const [updatedQuestion] = await tx.update(question)
+          const [q] = await tx.select({ id: question.id }).from(question).where(eq(question.id, rpt.targetId));
+          if (!q) throw new TRPCError({ code: "NOT_FOUND" });
+          const [updated] = await tx.update(question)
             .set({ status: input.action === "hide" ? "hidden_by_admin" : "removed" })
-            .where(eq(question.id, rpt.targetId))
+            .where(and(eq(question.id, rpt.targetId), inArray(question.status, fromStatuses)))
             .returning({ id: question.id });
-          if (!updatedQuestion) throw new TRPCError({ code: "NOT_FOUND" });
+          if (!updated) throw new TRPCError({ code: "CONFLICT", message: "TARGET_NOT_ACTIONABLE" });
         } else {
           // CAS mirrors AdminDAL.remove: hide from published only, remove from published|hidden
           // (plan header reconciliation #6 — supersedes interfaces.md §7's stale published|hidden-for-hide note)
@@ -507,9 +517,13 @@ export class AdminDAL {
         }
       }
 
-      await tx.update(report)
+      // CAS closes the TOCTOU on the early open-check: two concurrent resolves both pass the check,
+      // so guard status='open' here. Stays the LAST statement so an unresolvable target rolls back.
+      const [updatedReport] = await tx.update(report)
         .set({ status: "resolved", resolution: input.resolution ?? null })
-        .where(eq(report.id, input.id));
+        .where(and(eq(report.id, input.id), eq(report.status, "open")))
+        .returning({ id: report.id });
+      if (!updatedReport) throw new TRPCError({ code: "CONFLICT", message: "ALREADY_RESOLVED" });
     });
 
     if (affectedSlug) {

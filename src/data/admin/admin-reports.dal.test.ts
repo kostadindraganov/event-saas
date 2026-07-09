@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterEach, expect, test, vi } from "vitest";
 import { eq, inArray } from "drizzle-orm";
 import { AdminDAL } from "./admin.dal";
@@ -326,6 +327,143 @@ test("resolveReport: CAS-miss (target вече неактуален) → CONFLIC
 
   const [reportAfter] = await testDb.select().from(schema.report).where(eq(schema.report.id, rpt!.id));
   expect(reportAfter?.status).toBe("open");
+
+  await testDb.delete(schema.report).where(eq(schema.report.id, rpt!.id));
+});
+
+test("resolveReport: review ratchet — remove после hide отказва (CONFLICT), removed не се връща към hidden_by_admin, 2-рият report остава open, агрегатите непроменени", async () => {
+  const owner = await createTestUser();
+  cleanupIds.push(owner.id);
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const listingRow = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+
+  const customer = await createTestUser();
+  cleanupIds.push(customer.id);
+  const st = await createTestServiceType(listingRow.id, { kind: "full_day" });
+  const booking = await createTestBooking(listingRow.id, st.id, customer.id, {
+    status: "completed", isFullDay: true, eventDate: "2099-01-01", phone: "0888123125",
+  });
+  const rev = await insertTestReview({ listingId: listingRow.id, authorId: customer.id, bookingId: booking.id });
+  await testDb.update(schema.listing).set({ reviewCount: 1, ratingAvg: "5.00" }).where(eq(schema.listing.id, listingRow.id));
+
+  // D6 позволява дублирани report-и — два открити report-а върху едно ревю
+  const reporter = await createTestUser();
+  cleanupIds.push(reporter.id);
+  const [rptA] = await testDb.insert(schema.report).values({
+    targetType: "review", targetId: rev.id, reporterId: reporter.id, reason: "А",
+  }).returning();
+  const [rptB] = await testDb.insert(schema.report).values({
+    targetType: "review", targetId: rev.id, reporterId: reporter.id, reason: "Б",
+  }).returning();
+
+  await AdminDAL.resolveReport({ id: rptA!.id, action: "remove" });
+  const [afterA] = await testDb.select().from(schema.review).where(eq(schema.review.id, rev.id));
+  expect(afterA?.status).toBe("removed");
+  const [listingAfterA] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, listingRow.id));
+  expect(listingAfterA?.reviewCount).toBe(0);
+  expect(listingAfterA?.ratingAvg).toBeNull();
+
+  // hide върху вече removed ревю → CAS не намира ред → CONFLICT, ratchet държи
+  await expect(AdminDAL.resolveReport({ id: rptB!.id, action: "hide" }))
+    .rejects.toMatchObject({ code: "CONFLICT", message: "TARGET_NOT_ACTIONABLE" });
+
+  const [afterB] = await testDb.select().from(schema.review).where(eq(schema.review.id, rev.id));
+  expect(afterB?.status).toBe("removed");
+  const [rptBAfter] = await testDb.select().from(schema.report).where(eq(schema.report.id, rptB!.id));
+  expect(rptBAfter?.status).toBe("open");
+  // провалилият се 2-ри resolve не е рекомпютнал агрегатите
+  const [listingAfterB] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, listingRow.id));
+  expect(listingAfterB?.reviewCount).toBe(0);
+  expect(listingAfterB?.ratingAvg).toBeNull();
+
+  await testDb.delete(schema.report).where(inArray(schema.report.id, [rptA!.id, rptB!.id]));
+  await testDb.delete(schema.review).where(eq(schema.review.id, rev.id));
+});
+
+test("resolveReport: question ratchet — remove после hide отказва (CONFLICT), removed остава, 2-рият report остава open", async () => {
+  const owner = await createTestUser();
+  cleanupIds.push(owner.id);
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const listingRow = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+
+  const asker = await createTestUser();
+  cleanupIds.push(asker.id);
+  const [q] = await testDb.insert(schema.question).values({
+    listingId: listingRow.id, authorId: asker.id, body: "Спам въпрос ли е това?",
+  }).returning();
+
+  const reporter = await createTestUser();
+  cleanupIds.push(reporter.id);
+  const [rptA] = await testDb.insert(schema.report).values({
+    targetType: "question", targetId: q!.id, reporterId: reporter.id, reason: "А",
+  }).returning();
+  const [rptB] = await testDb.insert(schema.report).values({
+    targetType: "question", targetId: q!.id, reporterId: reporter.id, reason: "Б",
+  }).returning();
+
+  await AdminDAL.resolveReport({ id: rptA!.id, action: "remove" });
+  const [afterA] = await testDb.select().from(schema.question).where(eq(schema.question.id, q!.id));
+  expect(afterA?.status).toBe("removed");
+
+  await expect(AdminDAL.resolveReport({ id: rptB!.id, action: "hide" }))
+    .rejects.toMatchObject({ code: "CONFLICT", message: "TARGET_NOT_ACTIONABLE" });
+
+  const [afterB] = await testDb.select().from(schema.question).where(eq(schema.question.id, q!.id));
+  expect(afterB?.status).toBe("removed");
+  const [rptBAfter] = await testDb.select().from(schema.report).where(eq(schema.report.id, rptB!.id));
+  expect(rptBAfter?.status).toBe("open");
+
+  await testDb.delete(schema.report).where(inArray(schema.report.id, [rptA!.id, rptB!.id]));
+});
+
+test("resolveReport: липсващ target → NOT_FOUND (review и question), report остава open", async () => {
+  const owner = await createTestUser();
+  cleanupIds.push(owner.id);
+
+  const reporter = await createTestUser();
+  cleanupIds.push(reporter.id);
+  const [rptRev] = await testDb.insert(schema.report).values({
+    targetType: "review", targetId: randomUUID(), reporterId: reporter.id, reason: "Липсващо ревю",
+  }).returning();
+  const [rptQ] = await testDb.insert(schema.report).values({
+    targetType: "question", targetId: randomUUID(), reporterId: reporter.id, reason: "Липсващ въпрос",
+  }).returning();
+
+  await expect(AdminDAL.resolveReport({ id: rptRev!.id, action: "remove" }))
+    .rejects.toMatchObject({ code: "NOT_FOUND" });
+  await expect(AdminDAL.resolveReport({ id: rptQ!.id, action: "hide" }))
+    .rejects.toMatchObject({ code: "NOT_FOUND" });
+
+  const [rptRevAfter] = await testDb.select().from(schema.report).where(eq(schema.report.id, rptRev!.id));
+  expect(rptRevAfter?.status).toBe("open");
+  const [rptQAfter] = await testDb.select().from(schema.report).where(eq(schema.report.id, rptQ!.id));
+  expect(rptQAfter?.status).toBe("open");
+
+  await testDb.delete(schema.report).where(inArray(schema.report.id, [rptRev!.id, rptQ!.id]));
+});
+
+test("resolveReport: report-row CAS — повторен resolve → CONFLICT ALREADY_RESOLVED, оригиналната resolution не се презаписва", async () => {
+  const owner = await createTestUser();
+  cleanupIds.push(owner.id);
+  const categoryId = await getTestCategoryId();
+  const cityId = await getTestCityId();
+  const listingRow = await createTestListing(owner.id, { status: "published", categoryId, cityId });
+
+  const reporter = await createTestUser();
+  cleanupIds.push(reporter.id);
+  const [rpt] = await testDb.insert(schema.report).values({
+    targetType: "listing", targetId: listingRow.id, reporterId: reporter.id, reason: "CAS тест",
+  }).returning();
+
+  await AdminDAL.resolveReport({ id: rpt!.id, action: "dismiss", resolution: "ПЪРВА резолюция" });
+  await expect(AdminDAL.resolveReport({ id: rpt!.id, action: "dismiss", resolution: "ВТОРА резолюция" }))
+    .rejects.toMatchObject({ code: "CONFLICT", message: "ALREADY_RESOLVED" });
+
+  const [reportAfter] = await testDb.select().from(schema.report).where(eq(schema.report.id, rpt!.id));
+  expect(reportAfter?.status).toBe("resolved");
+  expect(reportAfter?.resolution).toBe("ПЪРВА резолюция");
 
   await testDb.delete(schema.report).where(eq(schema.report.id, rpt!.id));
 });
