@@ -34,7 +34,7 @@ function CancelDialog({ booking, onCancelled }: { booking: BookingDTO; onCancell
   return (
     <AlertDialog onOpenChange={(o) => { if (!o) { setReason(""); setError(false); } }}>
       <AlertDialogTrigger asChild>
-        <Button variant="outline" size="sm">{t("cancel")}</Button>
+        <Button variant="outline" size="default">{t("cancel")}</Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>

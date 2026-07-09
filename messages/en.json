@@ -5,7 +5,8 @@
     "signIn": "Sign in",
     "signUp": "Sign up",
     "signOut": "Sign out",
-    "tooManyRequests": "Too many requests. Try again later."
+    "tooManyRequests": "Too many requests. Try again later.",
+    "close": "Close"
   },
   "Home": {
     "title": "All wedding services in one place",
@@ -64,6 +65,7 @@
       "confirm": "Delete",
       "videoUrl": "YouTube link",
       "addVideo": "Add video",
+      "removeVideo": "Delete video",
       "invalidVideo": "Invalid YouTube link",
       "cfMissing": "Image hosting is not configured (CLOUDFLARE_* keys)."
     },
@@ -106,9 +108,9 @@
       "published": "The listing is live.",
       "submitted": "The listing was submitted for approval.",
       "rejectedReason": "Rejection reason",
-      "imagesCount": "{count} images",
-      "videosCount": "{count} videos",
-      "packagesCount": "{count} packages",
+      "imagesCount": "{count, plural, one {# image} other {# images}}",
+      "videosCount": "{count, plural, one {# video} other {# videos}}",
+      "packagesCount": "{count, plural, one {# package} other {# packages}}",
       "yes": "Yes",
       "no": "No"
     },
@@ -433,6 +435,7 @@
       "name": "Name",
       "slug": "Slug",
       "region": "Region",
+      "edit": "Edit",
       "save": "Save",
       "saving": "Saving…",
       "saved": "Saved.",

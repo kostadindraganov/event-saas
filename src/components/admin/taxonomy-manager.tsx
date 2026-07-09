@@ -120,11 +120,11 @@ function CategoryManager() {
                 <TableCell><Badge variant={c.isActive ? "default" : "outline"}>{c.isActive ? t("statusActive") : t("statusInactive")}</Badge></TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <CategoryDialog category={c} trigger={<Button variant="outline" size="icon-sm"><Pencil /></Button>} />
+                    <CategoryDialog category={c} trigger={<Button variant="outline" size="icon" className="size-11" aria-label={t("edit")}><Pencil /></Button>} />
                     {c.isActive ? (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm">{t("deactivate")}</Button>
+                          <Button variant="destructive" size="default">{t("deactivate")}</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
@@ -140,7 +140,7 @@ function CategoryManager() {
                         </AlertDialogContent>
                       </AlertDialog>
                     ) : (
-                      <Button variant="outline" size="sm" onClick={() => toggleActive.mutate({ id: c.id, isActive: true })}>
+                      <Button variant="outline" size="default" onClick={() => toggleActive.mutate({ id: c.id, isActive: true })}>
                         {t("activate")}
                       </Button>
                     )}
@@ -228,12 +228,12 @@ function AttributeDialog({
                     onChange={(e) => setOptions((arr) => arr.map((x, j) => j === i ? { ...x, labelBg: e.target.value } : x))} />
                   <Input className="max-w-36" placeholder={t("optionLabelEn")} value={o.labelEn}
                     onChange={(e) => setOptions((arr) => arr.map((x, j) => j === i ? { ...x, labelEn: e.target.value } : x))} />
-                  <Button type="button" variant="ghost" size="icon-sm" onClick={() => setOptions((arr) => arr.filter((_, j) => j !== i))}>
+                  <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("removeOption")} onClick={() => setOptions((arr) => arr.filter((_, j) => j !== i))}>
                     <Trash2 />
                   </Button>
                 </div>
               ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => setOptions((arr) => [...arr, { value: "", labelBg: "", labelEn: "" }])}>
+              <Button type="button" variant="outline" size="default" onClick={() => setOptions((arr) => [...arr, { value: "", labelBg: "", labelEn: "" }])}>
                 <Plus /> {t("addOption")}
               </Button>
             </fieldset>
@@ -304,10 +304,10 @@ function AttributeManager() {
                 <TableCell>{t(`type${d.type[0]!.toUpperCase()}${d.type.slice(1)}` as "typeSingle" | "typeMulti" | "typeNumber" | "typeBoolean")}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <AttributeDialog categoryId={activeCategoryId} definition={d} trigger={<Button variant="outline" size="icon-sm"><Pencil /></Button>} />
+                    <AttributeDialog categoryId={activeCategoryId} definition={d} trigger={<Button variant="outline" size="icon" className="size-11" aria-label={t("edit")}><Pencil /></Button>} />
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="icon-sm"><Trash2 /></Button>
+                        <Button variant="destructive" size="icon" className="size-11" aria-label={t("delete")}><Trash2 /></Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
@@ -433,7 +433,7 @@ function LocationManager() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">{t("regionsTab")}</h2>
-          <RegionDialog trigger={<Button size="sm"><Plus /> {t("addRegion")}</Button>} />
+          <RegionDialog trigger={<Button size="default"><Plus /> {t("addRegion")}</Button>} />
         </div>
         {!regions || regions.length === 0 ? <p className="text-muted-foreground">{t("emptyRegions")}</p> : (
           <Table>
@@ -443,10 +443,10 @@ function LocationManager() {
                   <TableCell>{r.name}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <RegionDialog region={r} trigger={<Button variant="outline" size="icon-sm" onClick={(e) => e.stopPropagation()}><Pencil /></Button>} />
+                      <RegionDialog region={r} trigger={<Button variant="outline" size="icon" className="size-11" aria-label={t("edit")} onClick={(e) => e.stopPropagation()}><Pencil /></Button>} />
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="icon-sm" onClick={(e) => e.stopPropagation()}><Trash2 /></Button>
+                          <Button variant="destructive" size="icon" className="size-11" aria-label={t("delete")} onClick={(e) => e.stopPropagation()}><Trash2 /></Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
@@ -470,7 +470,7 @@ function LocationManager() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">{t("citiesTab")}</h2>
-          {regionId && <CityDialog regionId={regionId} trigger={<Button size="sm"><Plus /> {t("addCity")}</Button>} />}
+          {regionId && <CityDialog regionId={regionId} trigger={<Button size="default"><Plus /> {t("addCity")}</Button>} />}
         </div>
         {!regionId ? <p className="text-muted-foreground">{t("emptyCities")}</p> : !cities || cities.length === 0 ? (
           <p className="text-muted-foreground">{t("emptyCities")}</p>
@@ -482,10 +482,10 @@ function LocationManager() {
                   <TableCell>{c.name}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <CityDialog regionId={regionId} city={c} trigger={<Button variant="outline" size="icon-sm"><Pencil /></Button>} />
+                      <CityDialog regionId={regionId} city={c} trigger={<Button variant="outline" size="icon" className="size-11" aria-label={t("edit")}><Pencil /></Button>} />
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="icon-sm"><Trash2 /></Button>
+                          <Button variant="destructive" size="icon" className="size-11" aria-label={t("delete")}><Trash2 /></Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>

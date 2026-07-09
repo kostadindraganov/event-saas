@@ -44,7 +44,7 @@ export default async function MyListingsPage() {
                   </p>
                 )}
                 <div className="flex items-center gap-2">
-                  <Button asChild variant="outline" size="sm">
+                  <Button asChild variant="outline" size="default">
                     <Link href={`/profil/dostavchik/obiavi/${l.id}`}>{t("edit")}</Link>
                   </Button>
                   <ListingActions id={l.id} status={l.status} />

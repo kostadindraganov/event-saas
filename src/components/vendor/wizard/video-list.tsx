@@ -47,8 +47,9 @@ export function VideoList({ listingId }: { listingId: string }) {
               className="aspect-video w-full rounded-md border object-cover"
             />
             <Button
-              type="button" variant="secondary" size="sm"
-              className="absolute right-1 top-1"
+              type="button" variant="secondary" size="icon"
+              className="absolute right-1 top-1 size-11"
+              aria-label={t("removeVideo")}
               onClick={() => remove.mutate({ id: v.id })}
             >
               ✕

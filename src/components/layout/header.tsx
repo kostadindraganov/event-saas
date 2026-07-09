@@ -24,7 +24,7 @@ export function Header() {
         <nav className="flex items-center gap-2">
           <Button
             variant="ghost"
-            size="sm"
+            size="default"
             onClick={() => router.replace(pathname, { locale: locale === "bg" ? "en" : "bg" })}
           >
             {locale === "bg" ? "EN" : "БГ"}
@@ -40,18 +40,18 @@ export function Header() {
               <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
                 <Link href="/profil/rezervacii">{tBooking("navLabel")}</Link>
               </Button>
-              <Button asChild variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="default">
                 <Link href="/profil/dostavchik/obiavi">{tVendor("myListings")}</Link>
               </Button>
               <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
                 <Link href="/profil/nastroiki">{tAccount("navLabel")}</Link>
               </Button>
-              <Button variant="outline" size="sm" onClick={() => authClient.signOut()}>
+              <Button variant="outline" size="default" onClick={() => authClient.signOut()}>
                 {t("signOut")}
               </Button>
             </>
           ) : (
-            <Button asChild size="sm">
+            <Button asChild size="default">
               <Link href="/vhod">{t("signIn")}</Link>
             </Button>
           )}

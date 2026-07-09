@@ -84,7 +84,7 @@ export function BookingRequestForm({ listingId, serviceTypes }: { listingId: str
     return (
       <div className="rounded-lg border border-border p-4">
         <p className="font-medium">{t("successTitle")}</p>
-        <Button asChild variant="outline" size="sm" className="mt-3">
+        <Button asChild variant="outline" size="default" className="mt-3">
           <Link href="/profil/rezervacii">{t("viewBookings")}</Link>
         </Button>
       </div>

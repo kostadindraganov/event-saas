@@ -46,7 +46,7 @@ export function InquiryForm({ listingId }: { listingId: string }) {
     return (
       <div className="rounded-lg border border-border p-4">
         <p className="font-medium">{t("successTitle")}</p>
-        <Button asChild variant="outline" size="sm" className="mt-3">
+        <Button asChild variant="outline" size="default" className="mt-3">
           <Link href={`/profil/saobshtenia/${threadId}`}>{t("viewConversation")}</Link>
         </Button>
       </div>

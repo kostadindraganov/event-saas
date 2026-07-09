@@ -5,7 +5,8 @@
     "signIn": "Вход",
     "signUp": "Регистрация",
     "signOut": "Изход",
-    "tooManyRequests": "Твърде много заявки. Опитай пак по-късно."
+    "tooManyRequests": "Твърде много заявки. Опитай пак по-късно.",
+    "close": "Затвори"
   },
   "Home": {
     "title": "Всички сватбени услуги на едно място",
@@ -64,6 +65,7 @@
       "confirm": "Изтрий",
       "videoUrl": "YouTube линк",
       "addVideo": "Добави видео",
+      "removeVideo": "Изтрий видеото",
       "invalidVideo": "Невалиден YouTube линк",
       "cfMissing": "Хостингът на снимки не е конфигуриран (CLOUDFLARE_* ключове)."
     },
@@ -106,9 +108,9 @@
       "published": "Обявата е публична.",
       "submitted": "Обявата е изпратена за одобрение.",
       "rejectedReason": "Причина за отказа",
-      "imagesCount": "{count} снимки",
-      "videosCount": "{count} видеа",
-      "packagesCount": "{count} пакета",
+      "imagesCount": "{count, plural, one {# снимка} other {# снимки}}",
+      "videosCount": "{count, plural, one {# видео} other {# видеа}}",
+      "packagesCount": "{count, plural, one {# пакет} other {# пакета}}",
       "yes": "Да",
       "no": "Не"
     },
@@ -433,6 +435,7 @@
       "name": "Име",
       "slug": "Slug",
       "region": "Област",
+      "edit": "Редактирай",
       "save": "Запази",
       "saving": "Запазване…",
       "saved": "Запазено.",

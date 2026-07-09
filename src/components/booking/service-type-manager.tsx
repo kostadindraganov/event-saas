@@ -178,11 +178,11 @@ export function ServiceTypeManager({ listingId }: { listingId: string }) {
                   listingId={listingId}
                   serviceType={st}
                   onSaved={invalidate}
-                  trigger={<Button variant="outline" size="sm">{t("edit")}</Button>}
+                  trigger={<Button variant="outline" size="default">{t("edit")}</Button>}
                 />
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="sm" className="text-destructive">{t("remove")}</Button>
+                    <Button variant="ghost" size="default" className="text-destructive">{t("remove")}</Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>

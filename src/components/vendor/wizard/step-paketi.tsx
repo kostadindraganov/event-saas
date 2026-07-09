@@ -108,7 +108,7 @@ export function StepPaketi({ listing }: { listing: ListingDTO }) {
               {p.included && <p className="whitespace-pre-line text-sm">{p.included}</p>}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-destructive">{t("remove")}</Button>
+                  <Button variant="ghost" size="default" className="text-destructive">{t("remove")}</Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>

@@ -27,7 +27,7 @@ export function ListingActions({ id, status }: { id: string; status: ListingStat
   if (status === "published") {
     return (
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" disabled={hide.isPending} onClick={() => { setErrorKey(null); hide.mutate({ id }); }}>
+        <Button variant="ghost" size="default" disabled={hide.isPending} onClick={() => { setErrorKey(null); hide.mutate({ id }); }}>
           {t("hide")}
         </Button>
         {errorKey && <p role="alert" className="text-sm text-destructive">{t("errorSave")}</p>}
@@ -37,7 +37,7 @@ export function ListingActions({ id, status }: { id: string; status: ListingStat
   if (status === "hidden") {
     return (
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" disabled={unhide.isPending} onClick={() => { setErrorKey(null); unhide.mutate({ id }); }}>
+        <Button variant="ghost" size="default" disabled={unhide.isPending} onClick={() => { setErrorKey(null); unhide.mutate({ id }); }}>
           {t("unhide")}
         </Button>
         {errorKey && (

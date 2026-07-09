@@ -89,7 +89,7 @@ export function ImageUploader({ listingId, coverImageId }: { listingId: string; 
                   <Badge>{t("cover")}</Badge>
                 ) : (
                   <Button
-                    type="button" variant="ghost" size="sm"
+                    type="button" variant="ghost" size="default"
                     onClick={() => setCover.mutate({ listingId, imageId: img.id })}
                   >
                     {t("setCover")}
@@ -97,7 +97,7 @@ export function ImageUploader({ listingId, coverImageId }: { listingId: string; 
                 )}
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button type="button" variant="ghost" size="sm" className="text-destructive">✕</Button>
+                    <Button type="button" variant="ghost" size="icon" className="size-11 text-destructive" aria-label={t("removeImage")}>✕</Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
