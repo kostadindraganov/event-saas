@@ -25,10 +25,17 @@ afterAll(async () => {
 });
 
 test("updateSettings(): валиден вход round-trip-ва през getBillingSettings", async () => {
+  // ВАЖНО: този тест commit-ва глобалния singleton `setting`, а billing.dal.test.ts чете
+  // СЪЩИТЕ редове конкурентно (getBillingSettings). Билинг-чувствителните полета
+  // (standard/premiumPerCategory/premiumSlots/durationDays) ТРЯБВА да останат на DEFAULT —
+  // иначе конкурентен LIMIT_REACHED тест там чете завишен лимит и не хвърля (flake, ~1/3).
+  // Варираме само graceDays + carouselSize (никой конкурентен тест не зависи от точните им
+  // стойности; carouselSize е stored-but-unused), което пак доказва че updateSettings
+  // персистира входа, а не го игнорира. НЕ връщай не-default сензитивни стойности тук.
   const input = {
-    limits: { standard: 3, premiumPerCategory: 5 },
+    limits: { standard: 1, premiumPerCategory: 2 },
     graceDays: 10,
-    promo: { durationDays: 45, premiumSlots: 4, carouselSize: 12 },
+    promo: { durationDays: 30, premiumSlots: 2, carouselSize: 99 },
   };
   const returned = await AdminDAL.updateSettings(input);
   expect(returned).toEqual(input);
