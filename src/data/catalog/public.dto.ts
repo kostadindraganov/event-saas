@@ -62,3 +62,10 @@ export type PublicListingPage = {
   page: number;
   perPage: number;
 };
+
+export type PublicListingCityCount = {
+  cityId: string;
+  slug: string;
+  name: string;
+  count: number;
+};

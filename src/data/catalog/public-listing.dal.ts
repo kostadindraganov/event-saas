@@ -8,7 +8,7 @@ import {
 import { CalendarDAL } from "@/data/booking/calendar.dal";
 import { ReviewDAL } from "@/data/reviews/review.dal";
 import type {
-  PublicListingCardDTO, PublicListingDetailDTO, PublicListingFilterInput,
+  PublicListingCardDTO, PublicListingCityCount, PublicListingDetailDTO, PublicListingFilterInput,
   PublicListingPage, PublicPackageDTO,
 } from "./public.dto";
 
@@ -95,6 +95,34 @@ function resolveChipValues(
   return { valuesBg, valuesEn };
 }
 
+// Споделен conds-builder за публичните листинг заявки. Съзнателно НЕ включва cityId —
+// list() го добавя при филтър по град, countByCity() го пропуска (пиновете покриват всички градове).
+function baseConds(input: PublicListingFilterInput): SQL[] {
+  const conds: SQL[] = [
+    eq(listing.status, "published"),
+    eq(listing.categoryId, input.categoryId),
+  ];
+  if (input.regionId) {
+    conds.push(sql`(${listing.wholeCountry} = true or exists (
+      select 1 from ${listingServiceRegion} lsr
+      where lsr.listing_id = ${listing.id} and lsr.region_id = ${input.regionId}
+    ))`);
+  }
+  if (input.priceMinCents !== undefined) conds.push(gte(listing.priceFromCents, input.priceMinCents));
+  if (input.priceMaxCents !== undefined) conds.push(lte(listing.priceFromCents, input.priceMaxCents));
+  for (const attr of input.attrs ?? []) {
+    if (attr.values.length === 0) continue;
+    const vals = sql.join(attr.values.map((v) => sql`${v}`), sql`, `);
+    conds.push(sql`exists (
+      select 1 from ${listingAttribute} la
+      where la.listing_id = ${listing.id}
+        and la.attribute_definition_id = ${attr.definitionId}
+        and la.value ?| array[${vals}]
+    )`);
+  }
+  return conds;
+}
+
 export class PublicListingDAL {
   async getBySlug(slug: string): Promise<PublicListingDetailDTO | null> {
     const [row] = await db
@@ -173,31 +201,8 @@ export class PublicListingDAL {
     const page = Math.max(input.page, 1);
     const offset = (page - 1) * perPage;
 
-    const conds: SQL[] = [
-      eq(listing.status, "published"),
-      eq(listing.categoryId, input.categoryId),
-    ];
+    const conds = baseConds(input);
     if (input.cityId) conds.push(eq(listing.cityId, input.cityId));
-    if (input.regionId) {
-      // регион: обслужва конкретния регион ИЛИ покрива цялата страна
-      conds.push(sql`(${listing.wholeCountry} = true or exists (
-        select 1 from ${listingServiceRegion} lsr
-        where lsr.listing_id = ${listing.id} and lsr.region_id = ${input.regionId}
-      ))`);
-    }
-    if (input.priceMinCents !== undefined) conds.push(gte(listing.priceFromCents, input.priceMinCents));
-    if (input.priceMaxCents !== undefined) conds.push(lte(listing.priceFromCents, input.priceMaxCents));
-    for (const attr of input.attrs ?? []) {
-      if (attr.values.length === 0) continue;
-      // jsonb `?|` съвпада и за скаларен string, и за масив (single/multi)
-      const vals = sql.join(attr.values.map((v) => sql`${v}`), sql`, `);
-      conds.push(sql`exists (
-        select 1 from ${listingAttribute} la
-        where la.listing_id = ${listing.id}
-          and la.attribute_definition_id = ${attr.definitionId}
-          and la.value ?| array[${vals}]
-      )`);
-    }
     const where = and(...conds);
 
     const orderBy =
@@ -223,6 +228,19 @@ export class PublicListingDAL {
     const [row] = await db.select({ total: count() }).from(listing).where(where);
 
     return { items: rows.map(toCard), total: row?.total ?? 0, page, perPage };
+  }
+
+  async countByCity(input: PublicListingFilterInput): Promise<PublicListingCityCount[]> {
+    const conds = baseConds(input);
+    // wholeCountry обявите нямат позиция на картата (виж CONTEXT.md «Гео-локация (град)»)
+    conds.push(eq(listing.wholeCountry, false));
+    const rows = await db
+      .select({ cityId: listing.cityId, slug: city.slug, name: city.name, cnt: count() })
+      .from(listing)
+      .innerJoin(city, eq(listing.cityId, city.id))
+      .where(and(...conds))
+      .groupBy(listing.cityId, city.slug, city.name);
+    return rows.map((r) => ({ cityId: r.cityId, slug: r.slug, name: r.name, count: r.cnt }));
   }
 
   async search(q: string, page: number, perPage: number): Promise<PublicListingPage> {

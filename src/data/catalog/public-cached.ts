@@ -23,6 +23,14 @@ export function cachedListingList(input: PublicListingFilterInput) {
   )();
 }
 
+export function cachedListingCountByCity(input: PublicListingFilterInput) {
+  return unstable_cache(
+    () => ListingDAL.public().countByCity(input),
+    ["listing-count-by-city", JSON.stringify(input)],
+    { tags: ["listings"], revalidate: HOUR },
+  )();
+}
+
 export function cachedSearch(q: string, page: number, perPage: number) {
   return unstable_cache(
     () => ListingDAL.public().search(q, page, perPage),
