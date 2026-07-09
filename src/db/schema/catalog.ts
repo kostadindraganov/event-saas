@@ -82,6 +82,7 @@ export const listing = pgTable("listing", {
   // начална «нови» + глобална пагинация/sitemap
   index("listing_pub_idx").on(t.publishedAt.desc()).where(sql`${t.status} = 'published'`),
   index("listing_search_tsv_idx").using("gin", t.searchTsv),
+  index("listing_owner_idx").on(t.ownerId),
 ]);
 
 export const listingServiceRegion = pgTable(

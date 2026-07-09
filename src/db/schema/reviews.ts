@@ -1,5 +1,5 @@
 import {
-  boolean, date, numeric, pgEnum, pgTable, smallint, text, timestamp, uuid,
+  boolean, date, index, numeric, pgEnum, pgTable, smallint, text, timestamp, uuid,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { listing } from "./catalog";
@@ -13,27 +13,34 @@ export const reportTargetType = pgEnum("report_target_type", [
 ]);
 export const reportStatus = pgEnum("report_status", ["open", "resolved"]);
 
-export const review = pgTable("review", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  bookingId: uuid("booking_id").notNull().unique().references(() => booking.id),
-  listingId: uuid("listing_id").notNull().references(() => listing.id),
-  authorId: text("author_id").notNull().references(() => user.id),
-  ratingQuality: smallint("rating_quality").notNull(),
-  ratingCommunication: smallint("rating_communication").notNull(),
-  ratingProfessionalism: smallint("rating_professionalism").notNull(),
-  ratingValue: smallint("rating_value").notNull(),
-  ratingFlexibility: smallint("rating_flexibility").notNull(),
-  ratingOverall: numeric("rating_overall", { precision: 3, scale: 2 }).notNull(),
-  title: text("title").notNull(),
-  body: text("body").notNull(),
-  wouldRecommend: boolean("would_recommend").notNull(),
-  eventDate: date("event_date").notNull(),
-  replyText: text("reply_text"),
-  replyUpdatedAt: timestamp("reply_updated_at"),
-  editableUntil: timestamp("editable_until").notNull(), // createdAt + 48ч
-  status: contentStatus("status").notNull().default("visible"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const review = pgTable(
+  "review",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    bookingId: uuid("booking_id").notNull().unique().references(() => booking.id),
+    listingId: uuid("listing_id").notNull().references(() => listing.id),
+    authorId: text("author_id").notNull().references(() => user.id),
+    ratingQuality: smallint("rating_quality").notNull(),
+    ratingCommunication: smallint("rating_communication").notNull(),
+    ratingProfessionalism: smallint("rating_professionalism").notNull(),
+    ratingValue: smallint("rating_value").notNull(),
+    ratingFlexibility: smallint("rating_flexibility").notNull(),
+    ratingOverall: numeric("rating_overall", { precision: 3, scale: 2 }).notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    wouldRecommend: boolean("would_recommend").notNull(),
+    eventDate: date("event_date").notNull(),
+    replyText: text("reply_text"),
+    replyUpdatedAt: timestamp("reply_updated_at"),
+    editableUntil: timestamp("editable_until").notNull(), // createdAt + 48ч
+    status: contentStatus("status").notNull().default("visible"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("review_listing_status_idx").on(t.listingId, t.status),
+    index("review_author_idx").on(t.authorId),
+  ],
+);
 
 export const reviewImage = pgTable("review_image", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -41,24 +48,36 @@ export const reviewImage = pgTable("review_image", {
   cfImageId: text("cf_image_id").notNull(),
 });
 
-export const question = pgTable("question", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  listingId: uuid("listing_id").notNull().references(() => listing.id, { onDelete: "cascade" }),
-  authorId: text("author_id").notNull().references(() => user.id),
-  body: text("body").notNull(),
-  answerText: text("answer_text"),
-  answeredAt: timestamp("answered_at"),
-  status: contentStatus("status").notNull().default("visible"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const question = pgTable(
+  "question",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    listingId: uuid("listing_id").notNull().references(() => listing.id, { onDelete: "cascade" }),
+    authorId: text("author_id").notNull().references(() => user.id),
+    body: text("body").notNull(),
+    answerText: text("answer_text"),
+    answeredAt: timestamp("answered_at"),
+    status: contentStatus("status").notNull().default("visible"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("question_listing_status_idx").on(t.listingId, t.status),
+  ],
+);
 
-export const report = pgTable("report", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  targetType: reportTargetType("target_type").notNull(),
-  targetId: uuid("target_id").notNull(),
-  reporterId: text("reporter_id").notNull().references(() => user.id),
-  reason: text("reason").notNull(),
-  status: reportStatus("status").notNull().default("open"),
-  resolution: text("resolution"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const report = pgTable(
+  "report",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    targetType: reportTargetType("target_type").notNull(),
+    targetId: uuid("target_id").notNull(),
+    reporterId: text("reporter_id").notNull().references(() => user.id),
+    reason: text("reason").notNull(),
+    status: reportStatus("status").notNull().default("open"),
+    resolution: text("resolution"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("report_status_idx").on(t.status),
+  ],
+);

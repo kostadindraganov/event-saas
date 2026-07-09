@@ -50,6 +50,13 @@
       "when": 1783600408065,
       "tag": "0006_chubby_sunfire",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783605842138,
+      "tag": "0007_far_madelyne_pryor",
+      "breakpoints": true
     }
   ]
 }

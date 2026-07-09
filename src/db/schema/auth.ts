@@ -1,23 +1,29 @@
 import { relations } from "drizzle-orm";
 import { pgTable, text, timestamp, boolean, integer, index } from "drizzle-orm/pg-core";
 
-export const user = pgTable("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").default(false).notNull(),
-  image: text("image"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-  isAdmin: boolean("is_admin").default(false),
-  phone: text("phone"),
-  deletedAt: timestamp("deleted_at"),
-  anonymizedAt: timestamp("anonymized_at"),
-  avgResponseMinutes: integer("avg_response_minutes"),
-});
+export const user = pgTable(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").default(false).notNull(),
+    image: text("image"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+    isAdmin: boolean("is_admin").default(false),
+    phone: text("phone"),
+    deletedAt: timestamp("deleted_at"),
+    anonymizedAt: timestamp("anonymized_at"),
+    avgResponseMinutes: integer("avg_response_minutes"),
+  },
+  (t) => [
+    index("user_created_at_idx").on(t.createdAt.desc()),
+  ],
+);
 
 export const session = pgTable(
   "session",

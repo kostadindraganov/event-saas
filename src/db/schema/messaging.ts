@@ -31,5 +31,8 @@ export const message = pgTable(
     readAt: timestamp("read_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index("message_thread_idx").on(t.threadId, t.createdAt)],
+  (t) => [
+    index("message_thread_idx").on(t.threadId, t.createdAt),
+    index("message_sender_idx").on(t.senderId, t.threadId, t.createdAt),
+  ],
 );

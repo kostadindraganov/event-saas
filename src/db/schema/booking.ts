@@ -1,5 +1,5 @@
 import {
-  boolean, date, integer, pgEnum, pgTable, text, time, timestamp,
+  boolean, date, index, integer, pgEnum, pgTable, text, time, timestamp,
   uniqueIndex, unique, uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -22,13 +22,19 @@ export const bookingServiceType = pgTable("booking_service_type", {
   isActive: boolean("is_active").notNull().default(true),
 });
 
-export const availabilityRule = pgTable("availability_rule", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  listingId: uuid("listing_id").notNull().references(() => listing.id, { onDelete: "cascade" }),
-  weekday: integer("weekday").notNull(), // 0=понеделник … 6=неделя
-  startTime: time("start_time").notNull(),
-  endTime: time("end_time").notNull(),
-});
+export const availabilityRule = pgTable(
+  "availability_rule",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    listingId: uuid("listing_id").notNull().references(() => listing.id, { onDelete: "cascade" }),
+    weekday: integer("weekday").notNull(), // 0=понеделник … 6=неделя
+    startTime: time("start_time").notNull(),
+    endTime: time("end_time").notNull(),
+  },
+  (t) => [
+    index("availability_rule_listing_idx").on(t.listingId),
+  ],
+);
 
 export const blockedDate = pgTable(
   "blocked_date",
@@ -66,5 +72,9 @@ export const booking = pgTable(
     uniqueIndex("booking_confirmed_full_day_unique")
       .on(t.listingId, t.eventDate)
       .where(sql`${t.status} = 'confirmed' and ${t.isFullDay} = true`),
+    index("booking_listing_date_status_idx").on(t.listingId, t.eventDate, t.status),
+    index("booking_customer_idx").on(t.customerId, t.createdAt.desc()),
+    index("booking_status_date_idx").on(t.status, t.eventDate),
+    index("booking_service_type_idx").on(t.serviceTypeId),
   ],
 );
