@@ -59,6 +59,7 @@ export const auth = betterAuth({
       phone: { type: "string", required: false },
       deletedAt: { type: "date", required: false, input: false },
       anonymizedAt: { type: "date", required: false, input: false },
+      icalToken: { type: "string", required: false, input: false },
     },
   },
   plugins: [

@@ -19,6 +19,7 @@ export const user = pgTable(
     deletedAt: timestamp("deleted_at"),
     anonymizedAt: timestamp("anonymized_at"),
     avgResponseMinutes: integer("avg_response_minutes"),
+    icalToken: text("ical_token").unique(),
   },
   (t) => [
     index("user_created_at_idx").on(t.createdAt.desc()),
