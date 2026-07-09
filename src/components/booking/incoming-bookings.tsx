@@ -55,7 +55,7 @@ export function IncomingBookings() {
   const format = useFormatter();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [errorKey, setErrorKey] = useState<"conflict" | "generic" | null>(null);
+  const [errorKey, setErrorKey] = useState<"conflict" | "tooLate" | "generic" | null>(null);
 
   const listQO = trpc.booking.vendorCalendar.incoming.queryOptions();
   const { data: bookings, isPending } = useQuery(listQO);
@@ -64,7 +64,10 @@ export function IncomingBookings() {
   const confirm = useMutation(
     trpc.booking.confirm.mutationOptions({
       onSuccess: () => { setErrorKey(null); invalidate(); toast.success(t("confirmSuccess")); },
-      onError: (err) => setErrorKey(err.data?.code === "CONFLICT" ? "conflict" : "generic"),
+      onError: (err) => {
+        if (err.message === "TOO_LATE") setErrorKey("tooLate");
+        else setErrorKey(err.data?.code === "CONFLICT" ? "conflict" : "generic");
+      },
     }),
   );
 
@@ -82,7 +85,7 @@ export function IncomingBookings() {
       <h2 className="text-lg font-medium">{t("title")}</h2>
       {errorKey && (
         <p role="alert" className="text-sm text-destructive">
-          {errorKey === "conflict" ? t("errorConflict") : t("errorGeneric")}
+          {errorKey === "conflict" ? t("errorConflict") : errorKey === "tooLate" ? t("errorTooLate") : t("errorGeneric")}
         </p>
       )}
       <div className="space-y-3">

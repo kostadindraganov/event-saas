@@ -551,6 +551,7 @@
       "confirming": "Confirming…",
       "confirmSuccess": "Booking confirmed.",
       "errorConflict": "This date is already taken by another booking.",
+      "errorTooLate": "Too late to confirm — the event date has already passed.",
       "errorGeneric": "Something went wrong. Try again.",
       "decline": "Decline",
       "declineConfirmTitle": "Reason for declining",
