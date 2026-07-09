@@ -117,6 +117,7 @@
       "questionsTitle": "Unanswered questions",
       "emptyReviews": "No reviews yet for your listings.",
       "emptyQuestions": "No unanswered questions.",
+      "hiddenByAdmin": "Hidden by admin",
       "replyLabel": "Edit reply",
       "replyPlaceholder": "Write a public reply to the review…",
       "replySubmit": "Publish reply",

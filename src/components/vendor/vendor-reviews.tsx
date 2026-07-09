@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useTRPC } from "@/trpc/client";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { StarRating } from "@/components/reviews/star-rating";
 
@@ -30,7 +31,7 @@ function ReplyBox({ reviewId, initialText }: { reviewId: string; initialText: st
     return (
       <div className="mt-2 rounded-md bg-muted p-2">
         <p className="text-sm">{initialText}</p>
-        <Button type="button" variant="ghost" size="sm" className="mt-1" onClick={() => setEditing(true)}>
+        <Button type="button" variant="ghost" size="sm" className="mt-1 h-11" onClick={() => setEditing(true)}>
           {t("replyLabel")}
         </Button>
       </div>
@@ -104,6 +105,9 @@ export function VendorReviews() {
               <div className="mt-1 flex items-center gap-2">
                 <StarRating value={r.ratingOverall} />
                 <span className="font-medium">{r.title}</span>
+                {r.status === "hidden_by_admin" && (
+                  <Badge variant="destructive">{t("hiddenByAdmin")}</Badge>
+                )}
               </div>
               <p className="mt-1 whitespace-pre-line text-sm">{r.body}</p>
               <ReplyBox reviewId={r.id} initialText={r.replyText} />

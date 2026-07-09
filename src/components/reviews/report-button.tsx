@@ -48,7 +48,7 @@ export function ReportButton({
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setReason(""); setError(false); } }}>
       <DialogTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" className="text-muted-foreground">
+        <Button type="button" variant="ghost" size="sm" className="h-11 text-muted-foreground">
           <Flag className="size-3.5" aria-hidden="true" /> {t("button")}
         </Button>
       </DialogTrigger>
