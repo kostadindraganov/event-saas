@@ -60,7 +60,7 @@ test("line folding: >75 octets folds with CRLF + space, no mid-char split", () =
   }
   // continuation lines start with a single space
   const idx = physical.findIndex((l) => l.startsWith("SUMMARY:"));
-  expect(physical[idx + 1].startsWith(" ")).toBe(true);
+  expect(physical[idx + 1]!.startsWith(" ")).toBe(true);
   // unfolding (drop CRLF+space) recovers the original escaped value
   const unfolded = ics.replace(/\r\n /g, "");
   expect(unfolded).toContain(`SUMMARY:${long}`);
