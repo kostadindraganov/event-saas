@@ -1,4 +1,5 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+import { revalidateTag } from "next/cache";
 import { CalendarDAL } from "./calendar.dal";
 import {
   createTestUser, cleanupTestUser, createTestListing, getTestCategoryId, getTestCityId,
@@ -6,22 +7,25 @@ import {
 } from "@/test/db-helpers";
 import type { SessionUser } from "@/data/users/require-user";
 
+vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
+
 let cleanupIds: string[] = [];
 afterEach(async () => {
   for (const id of cleanupIds) await cleanupTestUser(id);
   cleanupIds = [];
+  vi.mocked(revalidateTag).mockClear();
 });
 
-async function ownerWithListing(): Promise<{ user: SessionUser; listingId: string }> {
+async function ownerWithListing(status: "published" | "draft" = "published"): Promise<{ user: SessionUser; listingId: string; slug: string }> {
   const u = await createTestUser();
   cleanupIds.push(u.id);
   const categoryId = await getTestCategoryId();
   const cityId = await getTestCityId();
-  const l = await createTestListing(u.id, { status: "published", categoryId, cityId });
-  return { user: { id: u.id, email: u.email, name: "Доставчик", isAdmin: false }, listingId: l.id };
+  const l = await createTestListing(u.id, { status, categoryId, cityId });
+  return { user: { id: u.id, email: u.email, name: "Доставчик", isAdmin: false }, listingId: l.id, slug: l.slug };
 }
 
-test("createServiceType/listServiceTypes/updateServiceType: owner CRUD, чужд потребител → FORBIDDEN", async () => {
+test("createServiceType/listServiceTypes/updateServiceType: owner CRUD, чужд потребител → NOT_FOUND", async () => {
   const { user, listingId } = await ownerWithListing();
   const dal = CalendarDAL.for(user);
 
@@ -41,7 +45,7 @@ test("createServiceType/listServiceTypes/updateServiceType: owner CRUD, чужд
   const stranger = await createTestUser();
   cleanupIds.push(stranger.id);
   const strangerUser: SessionUser = { id: stranger.id, email: stranger.email, name: "Чужд", isAdmin: false };
-  await expect(CalendarDAL.for(strangerUser).listServiceTypes(listingId)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(CalendarDAL.for(strangerUser).listServiceTypes(listingId)).rejects.toMatchObject({ code: "NOT_FOUND" });
 });
 
 test("deleteServiceType: in-use → CONFLICT SERVICE_TYPE_IN_USE; неизползвана се трие свободно", async () => {
@@ -179,4 +183,35 @@ test("slotsDay: делегира на slots.generateDaySlots — свободе�
 
   const blockedSlots = await CalendarDAL.public().slotsDay(listingId, st.id, "2099-05-14");
   expect(blockedSlots).toEqual([]);
+});
+
+test("PublicCalendarDAL: draft/hidden обява → availabilityMonth/slotsDay/listActiveServiceTypes хвърлят NOT_FOUND", async () => {
+  const { user, listingId } = await ownerWithListing("draft");
+  const st = await CalendarDAL.for(user).createServiceType({
+    listingId, kind: "hourly", name: "Час", durationMinutes: 60, priceFromCents: 10000, isActive: true,
+  });
+
+  await expect(CalendarDAL.public().availabilityMonth(listingId, 2099, 6)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  await expect(CalendarDAL.public().slotsDay(listingId, st.id, "2099-06-01")).rejects.toMatchObject({ code: "NOT_FOUND" });
+  await expect(CalendarDAL.public().listActiveServiceTypes(listingId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+
+test("createServiceType/updateServiceType/deleteServiceType: викат revalidateTag с listing slug", async () => {
+  const { user, listingId, slug } = await ownerWithListing();
+  const dal = CalendarDAL.for(user);
+
+  const st = await dal.createServiceType({
+    listingId, kind: "full_day", name: "Цял ден", durationMinutes: null, priceFromCents: 50000, isActive: true,
+  });
+  expect(revalidateTag).toHaveBeenCalledWith(`listing:${slug}`, { expire: 0 });
+
+  vi.mocked(revalidateTag).mockClear();
+  await dal.updateServiceType({
+    id: st.id, listingId, kind: "full_day", name: "Цял ден 2", durationMinutes: null, priceFromCents: 60000, isActive: true,
+  });
+  expect(revalidateTag).toHaveBeenCalledWith(`listing:${slug}`, { expire: 0 });
+
+  vi.mocked(revalidateTag).mockClear();
+  await dal.deleteServiceType(st.id);
+  expect(revalidateTag).toHaveBeenCalledWith(`listing:${slug}`, { expire: 0 });
 });

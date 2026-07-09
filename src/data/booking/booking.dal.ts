@@ -197,8 +197,9 @@ export class BookingDAL {
         customerId: booking.customerId, listingOwnerId: listing.ownerId, listingSlug: listing.slug, listingTitle: listing.title,
       }).from(booking).innerJoin(listing, eq(booking.listingId, listing.id)).where(eq(booking.id, id));
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-      if (!canModerateBooking(this.user, row.listingOwnerId)) throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canModerateBooking(this.user, row.listingOwnerId)) throw new TRPCError({ code: "NOT_FOUND" });
       if (row.status !== "pending") throw new TRPCError({ code: "CONFLICT", message: "NOT_PENDING" });
+      if (isPastDate(row.eventDate)) throw new TRPCError({ code: "CONFLICT", message: "TOO_LATE" });
 
       // freeness guard (D2)
       const confirmedRows = await tx.select({ isFullDay: booking.isFullDay, startTime: booking.startTime, endTime: booking.endTime })
@@ -253,7 +254,7 @@ export class BookingDAL {
       listingTitle: listing.title, eventDate: booking.eventDate,
     }).from(booking).innerJoin(listing, eq(booking.listingId, listing.id)).where(eq(booking.id, id));
     if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-    if (!canModerateBooking(this.user, row.listingOwnerId)) throw new TRPCError({ code: "FORBIDDEN" });
+    if (!canModerateBooking(this.user, row.listingOwnerId)) throw new TRPCError({ code: "NOT_FOUND" });
 
     const [updated] = await db.update(booking).set({ status: "declined", declineReason: reason })
       .where(and(eq(booking.id, id), eq(booking.status, "pending"))).returning({ id: booking.id });
@@ -272,7 +273,7 @@ export class BookingDAL {
     if (!row) throw new TRPCError({ code: "NOT_FOUND" });
 
     const side = canCancelBooking(this.user, { customerId: row.customerId, listingOwnerId: row.listingOwnerId, status: row.status });
-    if (!side) throw new TRPCError({ code: "FORBIDDEN" });
+    if (!side) throw new TRPCError({ code: "NOT_FOUND" });
     if (isPastDate(row.eventDate)) throw new TRPCError({ code: "CONFLICT", message: "TOO_LATE" });
 
     const newStatus = side === "customer" ? "cancelled_by_customer" : "cancelled_by_vendor";

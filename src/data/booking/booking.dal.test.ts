@@ -272,6 +272,32 @@ test("confirm(): auto_decline не пипа вече терминална зая
   expect(bRow?.status).toBe("declined"); // НЕ auto_declined — терминалната следа е запазена
 });
 
+test("confirm()/decline()/cancel(): чужд потребител (не собственик/клиент) → NOT_FOUND", async () => {
+  const { listingId } = await vendorWithListing();
+  const st = await createTestServiceType(listingId, { kind: "full_day", name: "Цял ден" });
+  const customer = await newCustomer();
+  const stranger = await newCustomer();
+
+  const req1 = await BookingDAL.for(customer).request({ listingId, serviceTypeId: st.id, eventDate: "2099-09-01", phone: "0888000001" });
+  await expect(BookingDAL.for(stranger).confirm(req1.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+  const req2 = await BookingDAL.for(customer).request({ listingId, serviceTypeId: st.id, eventDate: "2099-09-02", phone: "0888000002" });
+  await expect(BookingDAL.for(stranger).decline(req2.id, "Причина")).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+  const req3 = await BookingDAL.for(customer).request({ listingId, serviceTypeId: st.id, eventDate: "2099-09-03", phone: "0888000003" });
+  await expect(BookingDAL.for(stranger).cancel(req3.id, "Причина")).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+
+test("confirm(): pending резервация за минала дата → CONFLICT TOO_LATE", async () => {
+  const { vendor, listingId } = await vendorWithListing();
+  const st = await createTestServiceType(listingId, { kind: "full_day", name: "Цял ден" });
+  const customer = await newCustomer();
+  // request() блокира минали дати → вкарай директно през test helper-а, заобикаляйки guard-а
+  const past = await createTestBooking(listingId, st.id, customer.id, { status: "pending", isFullDay: true, eventDate: "2020-01-01", phone: "0888000001" });
+
+  await expect(BookingDAL.for(vendor).confirm(past.id)).rejects.toMatchObject({ code: "CONFLICT", message: "TOO_LATE" });
+});
+
 test("listMine(): hasReview е true само за резервации с вече оставено ревю", async () => {
   const { listingId } = await vendorWithListing();
   const st = await createTestServiceType(listingId, { kind: "full_day" });

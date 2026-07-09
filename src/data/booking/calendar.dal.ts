@@ -1,6 +1,7 @@
 import "server-only";
 import { and, asc, count, desc, eq, gte, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { revalidateTag } from "next/cache";
 import { db } from "@/db";
 import { availabilityRule, blockedDate, booking, bookingServiceType, listing, user } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
@@ -59,10 +60,10 @@ export class CalendarDAL {
   }
 
   // choke-point: listing.ownerId → canManageCalendar; NOT_FOUND за чужда/несъществуваща (без enumeration)
-  private async ownedListing(listingId: string): Promise<{ id: string; ownerId: string }> {
-    const [row] = await db.select({ id: listing.id, ownerId: listing.ownerId }).from(listing).where(eq(listing.id, listingId));
+  private async ownedListing(listingId: string): Promise<{ id: string; ownerId: string; slug: string }> {
+    const [row] = await db.select({ id: listing.id, ownerId: listing.ownerId, slug: listing.slug }).from(listing).where(eq(listing.id, listingId));
     if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-    if (!canManageCalendar(this.user, row.ownerId)) throw new TRPCError({ code: "FORBIDDEN" });
+    if (!canManageCalendar(this.user, row.ownerId)) throw new TRPCError({ code: "NOT_FOUND" });
     return row;
   }
 
@@ -73,23 +74,25 @@ export class CalendarDAL {
   }
 
   async createServiceType(input: ServiceTypeCreateInput): Promise<ServiceTypeDTO> {
-    await this.ownedListing(input.listingId);
+    const owned = await this.ownedListing(input.listingId);
     const [row] = await db.insert(bookingServiceType).values({
       listingId: input.listingId, kind: input.kind, name: input.name,
       durationMinutes: input.durationMinutes ?? null, priceFromCents: input.priceFromCents ?? null,
       isActive: input.isActive ?? true,
     }).returning();
     if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    revalidateTag(`listing:${owned.slug}`, { expire: 0 });
     return toServiceTypeDTO(row);
   }
 
   async updateServiceType(input: ServiceTypeUpdateInput): Promise<ServiceTypeDTO> {
-    await this.ownedListing(input.listingId);
+    const owned = await this.ownedListing(input.listingId);
     const [row] = await db.update(bookingServiceType).set({
       kind: input.kind, name: input.name, durationMinutes: input.durationMinutes ?? null,
       priceFromCents: input.priceFromCents ?? null, isActive: input.isActive ?? true,
     }).where(and(eq(bookingServiceType.id, input.id), eq(bookingServiceType.listingId, input.listingId))).returning();
     if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+    revalidateTag(`listing:${owned.slug}`, { expire: 0 });
     return toServiceTypeDTO(row);
   }
 
@@ -97,10 +100,11 @@ export class CalendarDAL {
   async deleteServiceType(id: string): Promise<void> {
     const [st] = await db.select({ listingId: bookingServiceType.listingId }).from(bookingServiceType).where(eq(bookingServiceType.id, id));
     if (!st) throw new TRPCError({ code: "NOT_FOUND" });
-    await this.ownedListing(st.listingId);
+    const owned = await this.ownedListing(st.listingId);
     const [c] = await db.select({ n: count() }).from(booking).where(eq(booking.serviceTypeId, id));
     if ((c?.n ?? 0) > 0) throw new TRPCError({ code: "CONFLICT", message: "SERVICE_TYPE_IN_USE" });
     await db.delete(bookingServiceType).where(eq(bookingServiceType.id, id));
+    revalidateTag(`listing:${owned.slug}`, { expire: 0 });
   }
 
   async getAvailability(listingId: string): Promise<AvailabilityRuleDTO[]> {
@@ -173,7 +177,8 @@ export class CalendarDAL {
 export class PublicCalendarDAL {
   // D10: ден е "free" ако ПОНЕ едно от предлаганите видове услуги е бронируемо тази дата.
   async availabilityMonth(listingId: string, year: number, month: number): Promise<AvailabilityDayDTO[]> {
-    const [l] = await db.select({ id: listing.id }).from(listing).where(eq(listing.id, listingId));
+    const [l] = await db.select({ id: listing.id }).from(listing)
+      .where(and(eq(listing.id, listingId), eq(listing.status, "published")));
     if (!l) throw new TRPCError({ code: "NOT_FOUND" });
 
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -229,6 +234,10 @@ export class PublicCalendarDAL {
   }
 
   async slotsDay(listingId: string, serviceTypeId: string, date: string): Promise<SlotDTO[]> {
+    const [l] = await db.select({ id: listing.id }).from(listing)
+      .where(and(eq(listing.id, listingId), eq(listing.status, "published")));
+    if (!l) throw new TRPCError({ code: "NOT_FOUND" });
+
     const [st] = await db
       .select({
         listingId: bookingServiceType.listingId, kind: bookingServiceType.kind,
@@ -257,6 +266,10 @@ export class PublicCalendarDAL {
   }
 
   async listActiveServiceTypes(listingId: string): Promise<ServiceTypeDTO[]> {
+    const [l] = await db.select({ id: listing.id }).from(listing)
+      .where(and(eq(listing.id, listingId), eq(listing.status, "published")));
+    if (!l) throw new TRPCError({ code: "NOT_FOUND" });
+
     const rows = await db.select().from(bookingServiceType)
       .where(and(eq(bookingServiceType.listingId, listingId), eq(bookingServiceType.isActive, true)));
     return rows.map(toServiceTypeDTO);
