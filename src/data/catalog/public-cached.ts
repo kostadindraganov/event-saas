@@ -24,9 +24,18 @@ export function cachedListingList(input: PublicListingFilterInput) {
 }
 
 export function cachedListingCountByCity(input: PublicListingFilterInput) {
+  // countByCity игнорира cityId/page/sort/perPage — ключи само по полетата, които реално
+  // влияят на пиновете, иначе всеки град/страница/сорт минта дубликат кеш запис (28× на гео-landing).
+  const key = JSON.stringify({
+    categoryId: input.categoryId,
+    regionId: input.regionId,
+    priceMinCents: input.priceMinCents,
+    priceMaxCents: input.priceMaxCents,
+    attrs: input.attrs,
+  });
   return unstable_cache(
     () => ListingDAL.public().countByCity(input),
-    ["listing-count-by-city", JSON.stringify(input)],
+    ["listing-count-by-city", key],
     { tags: ["listings"], revalidate: HOUR },
   )();
 }
