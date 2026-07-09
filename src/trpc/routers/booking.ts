@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../init";
+import { rateLimited } from "../rate-limit";
 import { BookingDAL } from "@/data/booking/booking.dal";
 import { CalendarDAL } from "@/data/booking/calendar.dal";
 import {
@@ -18,7 +19,7 @@ const byId = z.object({ id: z.uuid() });
 const byListingId = z.object({ listingId: z.uuid() });
 
 export const bookingRouter = createTRPCRouter({
-  request: protectedProcedure
+  request: rateLimited("booking.request", 10, 3_600_000)
     .input(BookingRequestSchema)
     .mutation(({ ctx, input }) => BookingDAL.for(ctx.user).request(input)),
   // confirm/decline/cancel: без revalidateTag — публичният календар е live tRPC заявка

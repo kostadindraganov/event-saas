@@ -11,12 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 
 export function QaSection({ listingId }: { listingId: string }) {
   const t = useTranslations("Qa");
+  const tc = useTranslations("Common");
   const locale = useLocale();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
   const [question, setQuestion] = useState("");
-  const [error, setError] = useState(false);
+  const [errorKey, setErrorKey] = useState<"errorGeneric" | "tooManyRequests" | null>(null);
 
   const listQO = trpc.qa.listByListing.queryOptions({ listingId });
   const { data: questions, isPending } = useQuery(listQO);
@@ -25,11 +26,11 @@ export function QaSection({ listingId }: { listingId: string }) {
     trpc.qa.ask.mutationOptions({
       onSuccess: () => {
         setQuestion("");
-        setError(false);
+        setErrorKey(null);
         void queryClient.invalidateQueries({ queryKey: listQO.queryKey });
         toast.success(t("askSuccess"));
       },
-      onError: () => setError(true),
+      onError: (err) => setErrorKey(err.data?.code === "TOO_MANY_REQUESTS" ? "tooManyRequests" : "errorGeneric"),
     }),
   );
 
@@ -64,11 +65,11 @@ export function QaSection({ listingId }: { listingId: string }) {
         <div className="space-y-2">
           <Textarea
             value={question}
-            onChange={(e) => { setQuestion(e.target.value); setError(false); }}
+            onChange={(e) => { setQuestion(e.target.value); setErrorKey(null); }}
             placeholder={t("askPlaceholder")}
           />
           {question.length > 0 && !questionValid && <p role="alert" className="text-sm text-destructive">{t("bodyTooShort")}</p>}
-          {error && <p role="alert" className="text-sm text-destructive">{t("errorGeneric")}</p>}
+          {errorKey && <p role="alert" className="text-sm text-destructive">{errorKey === "tooManyRequests" ? tc("tooManyRequests") : t("errorGeneric")}</p>}
           <Button
             type="button"
             className="h-11"

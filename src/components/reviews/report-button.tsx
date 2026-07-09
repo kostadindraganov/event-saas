@@ -19,11 +19,12 @@ export function ReportButton({
   targetId: string;
 }) {
   const t = useTranslations("Report");
+  const tc = useTranslations("Common");
   const trpc = useTRPC();
   const { data: session } = authClient.useSession();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const [error, setError] = useState(false);
+  const [errorKey, setErrorKey] = useState<"errorGeneric" | "tooManyRequests" | null>(null);
 
   const report = useMutation(
     trpc.report.create.mutationOptions({
@@ -32,7 +33,7 @@ export function ReportButton({
         setReason("");
         toast.success(t("successToast"));
       },
-      onError: () => setError(true),
+      onError: (err) => setErrorKey(err.data?.code === "TOO_MANY_REQUESTS" ? "tooManyRequests" : "errorGeneric"),
     }),
   );
 
@@ -46,7 +47,7 @@ export function ReportButton({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setReason(""); setError(false); } }}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setReason(""); setErrorKey(null); } }}>
       <DialogTrigger asChild>
         <Button type="button" variant="ghost" size="sm" className="h-11 text-muted-foreground">
           <Flag className="size-3.5" aria-hidden="true" /> {t("button")}
@@ -59,13 +60,13 @@ export function ReportButton({
         <div className="space-y-2">
           <Textarea
             value={reason}
-            onChange={(e) => { setReason(e.target.value); setError(false); }}
+            onChange={(e) => { setReason(e.target.value); setErrorKey(null); }}
             placeholder={t("reasonPlaceholder")}
           />
           {reason.length > 0 && reason.trim().length < 3 && (
             <p role="alert" className="text-sm text-destructive">{t("reasonTooShort")}</p>
           )}
-          {error && <p role="alert" className="text-sm text-destructive">{t("errorGeneric")}</p>}
+          {errorKey && <p role="alert" className="text-sm text-destructive">{errorKey === "tooManyRequests" ? tc("tooManyRequests") : t("errorGeneric")}</p>}
         </div>
         <DialogFooter>
           <Button

@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../init";
+import { rateLimited } from "../rate-limit";
 import { MessagingDAL } from "@/data/messaging/messaging.dal";
 
 export const messagingRouter = createTRPCRouter({
-  createInquiry: protectedProcedure
+  createInquiry: rateLimited("messaging", 20, 60_000)
     .input(z.object({
       listingId: z.uuid(),
       body: z.string().trim().min(1).max(2000),
@@ -15,7 +16,7 @@ export const messagingRouter = createTRPCRouter({
   getThread: protectedProcedure
     .input(z.object({ threadId: z.uuid() }))
     .query(({ ctx, input }) => MessagingDAL.for(ctx.user).getThread(input.threadId)),
-  sendMessage: protectedProcedure
+  sendMessage: rateLimited("messaging", 20, 60_000)
     .input(z.object({ threadId: z.uuid(), body: z.string().trim().min(1).max(2000) }))
     .mutation(({ ctx, input }) => MessagingDAL.for(ctx.user).sendMessage(input.threadId, input.body)),
   markRead: protectedProcedure

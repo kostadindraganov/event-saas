@@ -12,19 +12,23 @@ import { Textarea } from "@/components/ui/textarea";
 
 export function InquiryForm({ listingId }: { listingId: string }) {
   const t = useTranslations("Messages");
+  const tc = useTranslations("Common");
   const trpc = useTRPC();
   const { data: session } = authClient.useSession();
   const [body, setBody] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [phone, setPhone] = useState("");
-  const [errorKey, setErrorKey] = useState<"errorSend" | "ownListing" | null>(null);
+  const [errorKey, setErrorKey] = useState<"errorSend" | "ownListing" | "tooManyRequests" | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
 
   const createInquiry = useMutation(
     trpc.messaging.createInquiry.mutationOptions({
       onSuccess: (res) => setThreadId(res.threadId),
       // ownListing няма ownerId в публичния DTO → сървърът връща FORBIDDEN, разграничаваме тук
-      onError: (err) => setErrorKey(err.data?.code === "FORBIDDEN" ? "ownListing" : "errorSend"),
+      onError: (err) =>
+        setErrorKey(
+          err.data?.code === "FORBIDDEN" ? "ownListing" : err.data?.code === "TOO_MANY_REQUESTS" ? "tooManyRequests" : "errorSend",
+        ),
     }),
   );
 
@@ -101,7 +105,7 @@ export function InquiryForm({ listingId }: { listingId: string }) {
           />
         </div>
       </div>
-      {errorKey && <p role="alert" className="text-sm text-destructive">{t(errorKey)}</p>}
+      {errorKey && <p role="alert" className="text-sm text-destructive">{errorKey === "tooManyRequests" ? tc("tooManyRequests") : t(errorKey)}</p>}
       <Button type="submit" disabled={!valid || createInquiry.isPending}>
         {createInquiry.isPending ? t("sending") : t("send")}
       </Button>

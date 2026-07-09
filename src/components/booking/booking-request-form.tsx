@@ -37,6 +37,7 @@ export function PublicAvailabilityCalendar({ listingId }: { listingId: string })
 
 export function BookingRequestForm({ listingId, serviceTypes }: { listingId: string; serviceTypes: ServiceTypeDTO[] }) {
   const t = useTranslations("Booking.request");
+  const tc = useTranslations("Common");
   const trpc = useTRPC();
   const { data: session } = authClient.useSession();
   const [serviceTypeId, setServiceTypeId] = useState(serviceTypes[0]?.id ?? "");
@@ -44,7 +45,7 @@ export function BookingRequestForm({ listingId, serviceTypes }: { listingId: str
   const [startTime, setStartTime] = useState("");
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
-  const [errorKey, setErrorKey] = useState<"conflict" | "selfBooking" | "generic" | null>(null);
+  const [errorKey, setErrorKey] = useState<"conflict" | "selfBooking" | "tooManyRequests" | "generic" | null>(null);
   const [sent, setSent] = useState(false);
 
   const selected = serviceTypes.find((s) => s.id === serviceTypeId);
@@ -63,6 +64,7 @@ export function BookingRequestForm({ listingId, serviceTypes }: { listingId: str
       onError: (err) => {
         if (err.data?.code === "CONFLICT") setErrorKey("conflict");
         else if (err.data?.code === "FORBIDDEN") setErrorKey("selfBooking");
+        else if (err.data?.code === "TOO_MANY_REQUESTS") setErrorKey("tooManyRequests");
         else setErrorKey("generic");
       },
     }),
@@ -153,7 +155,13 @@ export function BookingRequestForm({ listingId, serviceTypes }: { listingId: str
       </div>
       {errorKey && (
         <p role="alert" className="text-sm text-destructive">
-          {errorKey === "conflict" ? t("errorConflict") : errorKey === "selfBooking" ? t("errorSelfBooking") : t("errorGeneric")}
+          {errorKey === "conflict"
+            ? t("errorConflict")
+            : errorKey === "selfBooking"
+              ? t("errorSelfBooking")
+              : errorKey === "tooManyRequests"
+                ? tc("tooManyRequests")
+                : t("errorGeneric")}
         </p>
       )}
       <Button type="submit" className="h-11" disabled={!valid || request.isPending}>

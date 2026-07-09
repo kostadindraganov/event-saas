@@ -11,11 +11,12 @@ import { cn } from "@/lib/utils";
 
 export function ChatWindow({ threadId }: { threadId: string }) {
   const t = useTranslations("Messages");
+  const tc = useTranslations("Common");
   const format = useFormatter();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [body, setBody] = useState("");
-  const [error, setError] = useState(false);
+  const [errorKey, setErrorKey] = useState<"errorSend" | "tooManyRequests" | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const threadQO = trpc.messaging.getThread.queryOptions(
@@ -37,7 +38,7 @@ export function ChatWindow({ threadId }: { threadId: string }) {
         setBody("");
         void queryClient.invalidateQueries({ queryKey: threadQO.queryKey });
       },
-      onError: () => setError(true),
+      onError: (err) => setErrorKey(err.data?.code === "TOO_MANY_REQUESTS" ? "tooManyRequests" : "errorSend"),
     }),
   );
 
@@ -113,12 +114,12 @@ export function ChatWindow({ threadId }: { threadId: string }) {
         className="mt-3 space-y-2 border-t border-border pt-3"
         onSubmit={(e) => {
           e.preventDefault();
-          setError(false);
+          setErrorKey(null);
           if (!valid) return;
           sendMessage.mutate({ threadId, body: body.trim() });
         }}
       >
-        {error && <p role="alert" className="text-sm text-destructive">{t("errorSend")}</p>}
+        {errorKey && <p role="alert" className="text-sm text-destructive">{errorKey === "tooManyRequests" ? tc("tooManyRequests") : t("errorSend")}</p>}
         <div className="flex items-end gap-2">
           <Textarea
             value={body}

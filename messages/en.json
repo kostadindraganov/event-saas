@@ -4,7 +4,8 @@
     "search": "Search",
     "signIn": "Sign in",
     "signUp": "Sign up",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "tooManyRequests": "Too many requests. Try again later."
   },
   "Home": {
     "title": "All wedding services in one place",
