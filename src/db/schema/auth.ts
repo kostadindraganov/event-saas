@@ -15,6 +15,7 @@ export const user = pgTable("user", {
   isAdmin: boolean("is_admin").default(false),
   phone: text("phone"),
   deletedAt: timestamp("deleted_at"),
+  anonymizedAt: timestamp("anonymized_at"),
   avgResponseMinutes: integer("avg_response_minutes"),
 });
 

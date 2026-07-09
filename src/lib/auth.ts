@@ -57,6 +57,7 @@ export const auth = betterAuth({
       isAdmin: { type: "boolean", defaultValue: false, input: false },
       phone: { type: "string", required: false },
       deletedAt: { type: "date", required: false, input: false },
+      anonymizedAt: { type: "date", required: false, input: false },
     },
   },
   plugins: [

@@ -43,6 +43,13 @@
       "when": 1783411666887,
       "tag": "0005_zippy_the_twelve",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783600408065,
+      "tag": "0006_chubby_sunfire",
+      "breakpoints": true
     }
   ]
 }

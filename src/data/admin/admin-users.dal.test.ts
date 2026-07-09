@@ -53,6 +53,13 @@ test("unblockUser(): нулира deletedAt", async () => {
   expect(row?.deletedAt).toBeNull();
 });
 
+test("отказва unblock на анонимизиран акаунт", async () => {
+  const uid = await newUser();
+  // Симулирай анонимизирана акаунт: сетни deletedAt и anonymizedAt
+  await testDb.update(schema.user).set({ deletedAt: new Date(), anonymizedAt: new Date() }).where(eq(schema.user.id, uid));
+  await expect(AdminDAL.unblockUser(uid)).rejects.toMatchObject({ code: "CONFLICT" });
+});
+
 test("blockUser()/setAdmin(): self-guard — админ не действа върху себе си", async () => {
   const adminId = await newUser();
   await expect(AdminDAL.blockUser(adminId, adminId)).rejects.toThrow("SELF_ACTION");

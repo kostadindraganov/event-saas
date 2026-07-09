@@ -175,7 +175,12 @@ export class AdminDAL {
   }
 
   static async unblockUser(targetId: string): Promise<void> {
-    await db.update(user).set({ deletedAt: null, updatedAt: new Date() }).where(eq(user.id, targetId));
+    const [row] = await db
+      .update(user)
+      .set({ deletedAt: null, updatedAt: new Date() })
+      .where(and(eq(user.id, targetId), isNull(user.anonymizedAt)))
+      .returning({ id: user.id });
+    if (!row) throw new TRPCError({ code: "CONFLICT", message: "ACCOUNT_ANONYMIZED" });
   }
 
   // Self-guard: админ не де-админва (нито промотира) себе си — предпазва от заключване извън панела.
