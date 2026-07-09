@@ -1,4 +1,5 @@
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../init";
+import { accountRouter } from "./account";
 import { catalogRouter } from "./catalog";
 import { mediaRouter } from "./media";
 import { savedRouter } from "./saved";
@@ -25,6 +26,7 @@ export const appRouter = createTRPCRouter({
   review: reviewRouter,
   qa: qaRouter,
   report: reportRouter,
+  account: accountRouter,
 });
 
 export type AppRouter = typeof appRouter;
