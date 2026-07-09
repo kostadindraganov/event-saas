@@ -7,10 +7,13 @@ import {
   cachedCityBySlug,
   cachedDefinitionsByCategory,
   cachedListingList,
+  cachedListingCountByCity,
 } from "@/data/catalog/public-cached";
-import { parseListParams } from "@/lib/catalog-search-params";
+import { parseListParams, parseView } from "@/lib/catalog-search-params";
 import { JsonLd } from "@/components/catalog/json-ld";
 import { ListingGrid } from "@/components/catalog/listing-grid";
+import { ListingMap } from "@/components/catalog/listing-map";
+import { ViewToggle } from "@/components/catalog/view-toggle";
 import { CatalogSort } from "@/components/catalog/catalog-sort";
 import { CatalogPagination } from "@/components/catalog/catalog-pagination";
 import { FiltersPanel, type FilterState } from "@/components/catalog/filters-panel";
@@ -72,6 +75,10 @@ export default async function GeoLandingPage({
   const definitions = await cachedDefinitionsByCategory(category.id);
   const input = parseListParams(sp, category.id, definitions, { cityId: city.id });
   const result = await cachedListingList(input);
+  const view = parseView(sp);
+  // countByCity игнорира input.cityId → пиновете покриват всички градове на категорията;
+  // текущият град се подсветва. Клик по пин навигира към geo-landing на друг град.
+  const pins = view === "map" ? await cachedListingCountByCity(input) : [];
 
   const t = await getTranslations("Catalog");
   const categoryName = locale === "bg" ? category.nameBg : category.nameEn;
@@ -138,7 +145,10 @@ export default async function GeoLandingPage({
             </Link>
           </div>
         </div>
-        <CatalogSort sort={input.sort} />
+        <div className="flex items-center gap-2">
+          <ViewToggle view={view} />
+          <CatalogSort sort={input.sort} />
+        </div>
       </div>
 
       <div className="flex flex-col gap-8 lg:flex-row">
@@ -146,7 +156,9 @@ export default async function GeoLandingPage({
           <FiltersPanel definitions={definitions} current={current} hideCity />
         </div>
         <div className="min-w-0 flex-1">
-          {result.items.length > 0 ? (
+          {view === "map" ? (
+            <ListingMap pins={pins} mode="route" categorySlug={categorySlug} activeCitySlug={citySlug} />
+          ) : result.items.length > 0 ? (
             <>
               <ListingGrid listings={result.items} locale={locale} />
               <div className="mt-8">

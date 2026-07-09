@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { cachedCategoryBySlug, cachedDefinitionsByCategory, cachedListingList } from "@/data/catalog/public-cached";
-import { parseListParams } from "@/lib/catalog-search-params";
+import { cachedCategoryBySlug, cachedDefinitionsByCategory, cachedListingList, cachedListingCountByCity } from "@/data/catalog/public-cached";
+import { parseListParams, parseView } from "@/lib/catalog-search-params";
 import { JsonLd } from "@/components/catalog/json-ld";
 import { ListingGrid } from "@/components/catalog/listing-grid";
+import { ListingMap } from "@/components/catalog/listing-map";
+import { ViewToggle } from "@/components/catalog/view-toggle";
 import { CatalogSort } from "@/components/catalog/catalog-sort";
 import { CatalogPagination } from "@/components/catalog/catalog-pagination";
 import { FiltersPanel, type FilterState } from "@/components/catalog/filters-panel";
@@ -64,6 +66,8 @@ export default async function CategoryPage({
   const definitions = await cachedDefinitionsByCategory(category.id);
   const input = parseListParams(sp, category.id, definitions);
   const result = await cachedListingList(input);
+  const view = parseView(sp);
+  const pins = view === "map" ? await cachedListingCountByCity(input) : [];
 
   const current: FilterState = {
     cityId: input.cityId,
@@ -114,7 +118,10 @@ export default async function CategoryPage({
             {t("resultsCount", { count: result.total })}
           </p>
         </div>
-        <CatalogSort sort={input.sort} />
+        <div className="flex items-center gap-2">
+          <ViewToggle view={view} />
+          <CatalogSort sort={input.sort} />
+        </div>
       </div>
 
       <div className="flex flex-col gap-8 lg:flex-row">
@@ -122,7 +129,9 @@ export default async function CategoryPage({
           <FiltersPanel definitions={definitions} current={current} />
         </div>
         <div className="min-w-0 flex-1">
-          {result.items.length > 0 ? (
+          {view === "map" ? (
+            <ListingMap pins={pins} mode="query" categorySlug={categorySlug} />
+          ) : result.items.length > 0 ? (
             <>
               <ListingGrid listings={result.items} locale={locale} />
               <div className="mt-8">

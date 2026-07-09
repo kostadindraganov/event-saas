@@ -30,6 +30,10 @@ export function parseSort(sp: SP): "new" | "priceAsc" | "priceDesc" {
   return s === "priceAsc" || s === "priceDesc" ? s : "new";
 }
 
+export function parseView(sp: SP): "list" | "map" {
+  return one(sp.view) === "map" ? "map" : "list";
+}
+
 export function parsePage(sp: SP): number {
   const n = Number(one(sp.page));
   if (!Number.isInteger(n) || n < 1) return 1;
