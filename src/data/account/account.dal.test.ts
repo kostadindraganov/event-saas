@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { AccountDAL } from "./account.dal";
 import {
@@ -14,6 +14,10 @@ import {
   getTestCityId,
 } from "@/test/db-helpers";
 import * as schema from "@/db/schema";
+
+// revalidateTag извън заявка/render хвърля "static generation store missing";
+// eraseAccount го вика post-commit — стъбваме (същата конвенция като billing/catalog тестовете).
+vi.mock("next/cache", () => ({ revalidateTag: () => {} }));
 
 let cleanupIds: string[] = [];
 afterEach(async () => {
@@ -139,6 +143,24 @@ test("минава обявите в removed, запазва съдържани�
   expect(l?.status).toBe("removed");
   const [r] = await testDb.select().from(schema.review).where(eq(schema.review.id, rev.id));
   expect(r?.body).toBe("страхотно и достатъчно дълго ревю за валидация");
+});
+
+test("трие verification токените по стария email (PII остатък)", async () => {
+  const u = await createTestUser();
+  cleanupIds.push(u.id);
+  await testDb.insert(schema.verification).values({
+    id: randomUUID(),
+    identifier: u.email,
+    value: "reset-token",
+    expiresAt: new Date(Date.now() + 864e5),
+    updatedAt: new Date(),
+  });
+
+  await AccountDAL.eraseAccount(u.id);
+
+  expect(
+    await testDb.select().from(schema.verification).where(eq(schema.verification.identifier, u.email)),
+  ).toHaveLength(0);
 });
 
 test("втори erase → CONFLICT ALREADY_ANONYMIZED", async () => {
