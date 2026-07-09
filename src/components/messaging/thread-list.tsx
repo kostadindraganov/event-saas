@@ -11,11 +11,18 @@ export function ThreadList() {
   const t = useTranslations("Messages");
   const format = useFormatter();
   const trpc = useTRPC();
-  const { data: threads, isPending } = useQuery(
+  const { data: threads, isPending, isError } = useQuery(
     trpc.messaging.listThreads.queryOptions(undefined, { refetchInterval: 30000 }),
   );
 
   if (isPending) return null;
+  if (isError) {
+    return (
+      <div className="rounded-lg border border-border p-8 text-center">
+        <p className="font-medium">{t("loadError")}</p>
+      </div>
+    );
+  }
   if (!threads || threads.length === 0) {
     return (
       <div className="rounded-lg border border-border p-8 text-center">

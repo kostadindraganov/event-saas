@@ -202,6 +202,7 @@
     "composePlaceholder": "Напиши съобщение…",
     "back": "Назад към съобщенията",
     "threadNotFound": "Разговорът не е намерен.",
+    "loadError": "Съобщенията не се заредиха. Опитай пак.",
     "respondsWithin24h": "Отговаря до 24 ч",
     "navSearch": "Търси",
     "navSaved": "Избрани",

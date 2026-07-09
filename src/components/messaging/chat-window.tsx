@@ -42,12 +42,12 @@ export function ChatWindow({ threadId }: { threadId: string }) {
     }),
   );
 
-  // markRead веднъж при отваряне на нишката + invalidate unreadCount
-  // ponytail: firing on threadId mount; сървърът маркира само чужди непрочетени
+  // markRead при отваряне на нишката и при пристигане на нови съобщения (list refetch на 5s)
+  // ponytail: re-fires on every length change incl. own sent messages; сървърът маркира само чужди непрочетени, mutation е idempotent
   useEffect(() => {
     markRead.mutate({ threadId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId]);
+  }, [threadId, thread?.messages.length]);
 
   // auto-scroll до дъно при нови съобщения
   useEffect(() => {

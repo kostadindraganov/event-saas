@@ -202,6 +202,7 @@
     "composePlaceholder": "Write a message…",
     "back": "Back to messages",
     "threadNotFound": "Conversation not found.",
+    "loadError": "Couldn't load messages. Please try again.",
     "respondsWithin24h": "Responds within 24h",
     "navSearch": "Search",
     "navSaved": "Saved",
