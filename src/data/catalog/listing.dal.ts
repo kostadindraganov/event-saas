@@ -3,6 +3,7 @@ import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db";
 import { listing, listingServiceRegion } from "@/db/schema";
 import { slugifyBg } from "@/lib/slug";
+import { pgCode } from "@/data/pg";
 import type { SessionUser } from "@/data/users/require-user";
 import { canCreateListing, canEditListing, canSubmitListing } from "./catalog.policy";
 import type { ListingCreateInput, ListingDTO, ListingSummaryDTO, ListingUpdateInput } from "./catalog.dto";
@@ -68,13 +69,22 @@ export class ListingDAL {
 
   async createDraft(input: ListingCreateInput): Promise<ListingDTO> {
     if (!canCreateListing(this.user)) throw new Error("FORBIDDEN");
-    const slug = await this.uniqueSlug(input.title);
-    const [row] = await db
-      .insert(listing)
-      .values({ ownerId: this.user.id, categoryId: input.categoryId, cityId: input.cityId, title: input.title, slug })
-      .returning();
-    if (!row) throw new Error("INSERT_FAILED");
-    return toDTO(row, []);
+    // TOCTOU: uniqueSlug() е SELECT-then-decide без lock — конкурентен createDraft със същото заглавие
+    // може да вкара същия slug между нашия pre-check и нашия insert. Retry-ваме bounded на 23505.
+    for (let attempt = 1; attempt <= 50; attempt++) {
+      const slug = await this.uniqueSlug(input.title);
+      try {
+        const [row] = await db
+          .insert(listing)
+          .values({ ownerId: this.user.id, categoryId: input.categoryId, cityId: input.cityId, title: input.title, slug })
+          .returning();
+        if (!row) throw new Error("INSERT_FAILED");
+        return toDTO(row, []);
+      } catch (err) {
+        if (pgCode(err) !== "23505" || attempt === 50) throw err;
+      }
+    }
+    throw new Error("SLUG_EXHAUSTED");
   }
 
   async update(input: ListingUpdateInput): Promise<ListingDTO> {

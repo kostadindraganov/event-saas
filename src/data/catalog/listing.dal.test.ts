@@ -1,9 +1,10 @@
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { createTestUser, cleanupTestUser, createTestSubscription, getTestCategoryId, getTestCityId, testDb } from "@/test/db-helpers";
 import { ListingDAL } from "./listing.dal";
 import type { SessionUser } from "@/data/users/require-user";
+import { db } from "@/db";
 
 let owner: SessionUser;
 let stranger: SessionUser;
@@ -34,6 +35,27 @@ test("createDraft → уникални slug-ове при same title", async () 
   expect(a.status).toBe("draft");
   expect(a.slug).toBe("foto-studio-test");
   expect(b.slug).toBe("foto-studio-test-2");
+});
+
+test("createDraft: retry-on-conflict при 23505 race (TOCTOU) — не хвърля, връща валиден slug", async () => {
+  const dal = ListingDAL.for(owner);
+  const title = "Ретрай Рейс Тест";
+
+  // симулира конкурентен insert, който печели рейса между pre-check SELECT-а и самия INSERT:
+  // db.insert се пробива еднократно с реалната форма на pg unique violation (err.cause.code === "23505"),
+  // без да вкарва ред — retry-логиката трябва да прекалкулира slug-а и да успее с реалния (немокнат) insert.
+  const insertSpy = vi.spyOn(db, "insert").mockImplementationOnce(
+    () =>
+      ({
+        values: () => ({
+          returning: () => Promise.reject(Object.assign(new Error("duplicate key"), { cause: { code: "23505" } })),
+        }),
+      }) as unknown as ReturnType<typeof db.insert>,
+  );
+
+  const l = await dal.createDraft({ title, categoryId, cityId });
+  expect(l.slug).toBe("retray-reys-test");
+  insertSpy.mockRestore();
 });
 
 test("update: описание + региони; чужд потребител → FORBIDDEN", async () => {

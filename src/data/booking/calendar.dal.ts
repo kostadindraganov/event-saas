@@ -12,11 +12,7 @@ import type {
   BookingDTO, ServiceTypeCreateInput, ServiceTypeDTO, ServiceTypeUpdateInput,
   SetAvailabilityInput, SlotDTO,
 } from "./booking.dto";
-
-// drizzle-orm/neon-serverless обвива pg грешката — реалният код е в err.cause.code (копирано от admin.dal.ts)
-function pgCode(err: unknown): string | undefined {
-  return (err as { cause?: { code?: string } })?.cause?.code;
-}
+import { pgCode } from "@/data/pg";
 
 type ServiceTypeRow = typeof bookingServiceType.$inferSelect;
 type AvailabilityRuleRow = typeof availabilityRule.$inferSelect;

@@ -11,11 +11,7 @@ import {
 } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
 import type { BookingDTO, BookingRequestInput, MyBookingDTO } from "./booking.dto";
-
-// drizzle-orm обвива pg грешката — реалният код е в err.cause.code (както calendar.dal.ts).
-function pgCode(err: unknown): string | undefined {
-  return (err as { cause?: { code?: string } })?.cause?.code;
-}
+import { pgCode } from "@/data/pg";
 
 // ponytail: локален mapper, умишлено дублиран и в calendar.dal.ts (T7, listIncoming) — виж флага в
 // началото на секцията (избягва cross-file forward-dependency между T7→T8).

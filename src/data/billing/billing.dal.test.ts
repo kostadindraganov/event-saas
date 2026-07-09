@@ -198,10 +198,10 @@ test("expireGracePeriods: изтекъл гратис → скрива и вкл
   await createTestSubscription(activeOwner.id, { plan: "standard", status: "active" });
   const activeListing = await publishedListing(activeOwner.user, categoryA!, cityId, "DAL Активен");
 
-  const result = await BillingDAL.expireGracePeriods();
-  expect(result.hidden).toBeGreaterThanOrEqual(1);
-  expect(result.users).toContain(expiredOwner.id);
-  expect(result.users).not.toContain(activeOwner.id);
+  // expireGracePeriods() е unscoped global batch — успоредни тестове могат да го викат конкурентно,
+  // затова не се доверяваме на return value-то (result.hidden/result.users) на ТОЗИ конкретен run.
+  // Race-safe е само re-select-ът на реда по-долу.
+  await BillingDAL.expireGracePeriods();
 
   const [rowExpired] = await testDb.select().from(schema.listing).where(eq(schema.listing.id, expiredListing));
   expect(rowExpired?.status).toBe("hidden");

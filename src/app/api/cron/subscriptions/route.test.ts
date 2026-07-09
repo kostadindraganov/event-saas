@@ -78,7 +78,11 @@ test("изтекъл гратис → published обявите се скрива
   const res = await POST(req("Bearer test-cron-secret"));
   expect(res.status).toBe(200);
   const body = await res.json();
-  expect(body.hidden).toBeGreaterThanOrEqual(1);
+  // expireGracePeriods() е unscoped global batch — успоредни тестове могат да го викат конкурентно,
+  // затова не разчитаме на точна долна граница на body.hidden от ТОЗИ run, само на формата.
+  // Race-safe е re-select-ът по-долу.
+  expect(typeof body.hidden).toBe("number");
+  expect(body.hidden).toBeGreaterThanOrEqual(0);
 
   const [row] = await db.select().from(listing).where(eq(listing.id, l.id));
   expect(row?.status).toBe("hidden");
