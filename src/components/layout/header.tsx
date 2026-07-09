@@ -9,6 +9,7 @@ export function Header() {
   const tVendor = useTranslations("Vendor");
   const tMsg = useTranslations("Messages");
   const tBooking = useTranslations("Booking.list");
+  const tAccount = useTranslations("Account");
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
@@ -41,6 +42,9 @@ export function Header() {
               </Button>
               <Button asChild variant="ghost" size="sm">
                 <Link href="/profil/dostavchik/obiavi">{tVendor("myListings")}</Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+                <Link href="/profil/nastroiki">{tAccount("navLabel")}</Link>
               </Button>
               <Button variant="outline" size="sm" onClick={() => authClient.signOut()}>
                 {t("signOut")}

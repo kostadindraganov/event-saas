@@ -1,7 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { Search, Heart, MessageCircle, User } from "lucide-react";
+import { Search, Heart, MessageCircle, User, Settings } from "lucide-react";
 import { Link, usePathname } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/trpc/client";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 
 export function MobileBottomNav() {
   const t = useTranslations("Messages");
+  const tAccount = useTranslations("Account");
   const pathname = usePathname();
   const trpc = useTRPC();
   const { data: session } = authClient.useSession();
@@ -25,6 +26,7 @@ export function MobileBottomNav() {
     { href: "/profil/izbrani", label: t("navSaved"), Icon: Heart },
     { href: "/profil/saobshtenia", label: t("navMessages"), Icon: MessageCircle, badge: unread },
     { href: "/profil", label: t("navProfile"), Icon: User },
+    { href: "/profil/nastroiki", label: tAccount("navLabel"), Icon: Settings },
   ] as const;
 
   return (

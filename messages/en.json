@@ -640,5 +640,20 @@
     "submitting": "Sending…",
     "successToast": "Report sent.",
     "errorGeneric": "Something went wrong sending the report. Try again."
+  },
+  "Account": {
+    "title": "Account settings",
+    "exportTitle": "Download your data",
+    "exportDesc": "Download a machine-readable JSON file with all your data.",
+    "exportButton": "Download (JSON)",
+    "deleteTitle": "Delete account",
+    "deleteDesc": "Irreversible. Your personal data will be erased; your content stays anonymous.",
+    "deleteConfirmLabel": "Type ИЗТРИЙ to confirm",
+    "deleteButton": "Delete my account forever",
+    "hasFutureBookings": "You have confirmed upcoming bookings — they must be completed before deletion.",
+    "deleted": "Your account has been deleted.",
+    "cancel": "Cancel",
+    "errorGeneric": "Error. Please try again.",
+    "navLabel": "Settings"
   }
 }
