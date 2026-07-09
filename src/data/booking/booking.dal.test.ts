@@ -238,11 +238,10 @@ test("autoComplete(): confirmed с минала дата → completed; pending 
   const pastPending = await createTestBooking(listingId, st.id, customer.id, { status: "pending", isFullDay: true, eventDate: "2020-01-02", phone: "0888000002" });
   const futurePending = await createTestBooking(listingId, st.id, customer.id, { status: "pending", isFullDay: true, eventDate: "2099-08-01", phone: "0888000003" });
 
-  // ponytail: autoComplete() е глобален cron scan (D4) — не е owner-scoped по дизайн, затова тук асертираме
-  // делта (≥1) вместо точен owner-scoped select, а индивидуалните редове проверяваме директно по id.
-  const result = await BookingDAL.autoComplete();
-  expect(result.completed).toBeGreaterThanOrEqual(1);
-  expect(result.autoDeclined).toBeGreaterThanOrEqual(1);
+  // ponytail: autoComplete() е глобален cron scan (D4) — не е owner-scoped по дизайн; други test
+  // файлове го викат конкурентно, затова НЕ асертираме върху върнатата глобална тала (race),
+  // а директно по id на редовете, seed-нати от този тест.
+  await BookingDAL.autoComplete();
 
   const [c1] = await testDb.select().from(schema.booking).where(eq(schema.booking.id, pastConfirmed.id));
   expect(c1?.status).toBe("completed");

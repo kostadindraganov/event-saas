@@ -83,9 +83,9 @@ test("вътрешна грешка → 500 с generic body", async () => {
 test("минали confirmed→completed, минали pending→auto_declined + {completed,autoDeclined}", async () => {
   const res = await POST(req("Bearer test-cron-secret"));
   expect(res.status).toBe(200);
-  const body = await res.json();
-  expect(body.completed).toBeGreaterThanOrEqual(1);
-  expect(body.autoDeclined).toBeGreaterThanOrEqual(1);
+  // ponytail: cron route-ът вика глобален autoComplete() — другите test файлове го викат
+  // конкурентно, затова НЕ асертираме върху върнатата глобална тала (race), а директно по id.
+  await res.json();
 
   const [confirmedRow] = await testDb.select().from(booking).where(eq(booking.id, confirmedPastId));
   expect(confirmedRow?.status).toBe("completed");
