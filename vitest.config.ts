@@ -6,6 +6,15 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Интеграционните тестове бият реален Neon (много roundtrips per тест) — дефолтните 5s
+    // дават флейки timeout-и при паралелен пълен run. 30s покрива най-тежките нишки.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+    // ponytail: пълният паралелен run (по default = брой ядра worker-а) насища споделения
+    // Neon (timeout-и + контенция между файлове); 4 worker-а държат run-а стабилен.
+    // Вдигни, ако тестовете минат на изолирана/локална база.
+    maxWorkers: 4,
+    minWorkers: 1,
     // ponytail: forces next-intl through Vite's resolver (not Node's native ESM
     // resolver) so the "next/navigation" alias below actually applies to it.
     server: { deps: { inline: [/next-intl/] } },

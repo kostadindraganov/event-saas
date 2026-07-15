@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -38,6 +38,8 @@ export function ReviewForm({ booking, editMode = false }: { booking: MyBookingDT
   const [files, setFiles] = useState<File[]>([]);
   const [errorKey, setErrorKey] = useState<"alreadyReviewed" | "notCompleted" | "editWindowClosed" | "generic" | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [prefilledId, setPrefilledId] = useState<string | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const mineQuery = useQuery({
     ...trpc.review.mine.queryOptions({ bookingId: booking.id }),
@@ -46,8 +48,9 @@ export function ReviewForm({ booking, editMode = false }: { booking: MyBookingDT
   const editReview = editMode ? (mineQuery.data ?? undefined) : undefined;
 
   // prefill от editReview щом пристигне; auto-open диалога (fetch-then-open, за да не мигне празна форма)
-  useEffect(() => {
-    if (!editReview) return;
+  // adjust-state-during-render вместо effect — само при пристигане на нови данни, не при всеки render
+  if (editReview && editReview.id !== prefilledId) {
+    setPrefilledId(editReview.id);
     setRatings({
       quality: editReview.ratingQuality,
       communication: editReview.ratingCommunication,
@@ -59,8 +62,7 @@ export function ReviewForm({ booking, editMode = false }: { booking: MyBookingDT
     setBody(editReview.body);
     setWouldRecommend(editReview.wouldRecommend);
     setOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- само при пристигане на нови данни, не при всеки render
-  }, [editReview?.id]);
+  }
 
   function reset() {
     setRatings(EMPTY_RATINGS);
@@ -71,7 +73,7 @@ export function ReviewForm({ booking, editMode = false }: { booking: MyBookingDT
     setErrorKey(null);
     setUploading(false);
     setWantEdit(false);
-    if (fileRef.current) fileRef.current.value = "";
+    setFileInputKey((k) => k + 1); // remount на file input вместо ref clear (без четене на ref от mutation callbacks)
   }
 
   const requestUpload = useMutation(trpc.review.requestUpload.mutationOptions());
@@ -186,6 +188,7 @@ export function ReviewForm({ booking, editMode = false }: { booking: MyBookingDT
               {!editMode && (
                 <div className="space-y-2">
                   <input
+                    key={fileInputKey}
                     ref={fileRef}
                     type="file"
                     accept="image/*"

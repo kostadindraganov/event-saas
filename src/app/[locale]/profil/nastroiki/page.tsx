@@ -19,6 +19,7 @@ export default async function NastroikiPage({
           <p className="font-medium">{t("exportTitle")}</p>
           <p className="text-sm text-muted-foreground">{t("exportDesc")}</p>
           <Button asChild variant="outline" className="h-11">
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- API endpoint за file download (GDPR export), не страница */}
             <a href="/api/account/export">{t("exportButton")}</a>
           </Button>
         </CardContent>

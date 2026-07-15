@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -174,9 +174,7 @@ export function ModerationQueue() {
 
   // при одобрение/премахване на последния елемент от последната страница данните "свиват" общия брой
   // страници под текущата — връщаме админа обратно към новата последна страница вместо да го оставим блокиран
-  useEffect(() => {
-    if (totalPages >= 1 && page > totalPages) setPage(totalPages);
-  }, [totalPages, page]);
+  if (totalPages >= 1 && page > totalPages) setPage(totalPages);
 
   return (
     <div className="space-y-4">
