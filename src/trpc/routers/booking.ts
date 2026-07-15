@@ -50,13 +50,8 @@ export const bookingRouter = createTRPCRouter({
   }),
 
   vendorCalendar: createTRPCRouter({
-    // > **Забележка (consistency review):** serviceType.create/update/remove МЕНЯТ данни, които T14
-    // > кешира в публичната listing страница (`getBySlug` → `serviceTypes`, tag `listing:${slug}`) —
-    // > за разлика от blockedDate/confirm/decline/cancel по-горе. `ServiceTypeDTO` няма `slug` (T2
-    // > контракт), затова точно per-slug инвалидиране тук би изисквало DAL промяна извън обхвата на
-    // > T10 (огледално на blockedDate флага в Task-10 §Interfaces) — приема се временна staleness до
-    // > следващия TTL/друго инвалидиране на `listing:${slug}`; ако това е неприемливо, CalendarDAL
-    // > трябва да върне `listingSlug` от тези три метода.
+    // Кеш-инвалидирането е собственост на DAL-а: CalendarDAL.create/update/deleteServiceType
+    // сами revalidate-ват `listing:${slug}` — router-ът не знае за тагове.
     serviceType: createTRPCRouter({
       list: protectedProcedure
         .input(byListingId)

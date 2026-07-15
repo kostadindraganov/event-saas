@@ -59,6 +59,34 @@ function toHHMM(totalMinutes: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+// Разделя потвърдените резервации за една дата на целодневен флаг + часови интервали —
+// формата, която generateDaySlots очаква. Едното място за този split (read- и write-side).
+export function splitConfirmed(rows: { isFullDay: boolean; startTime: string | null; endTime: string | null }[]): {
+  confirmedFullDay: boolean;
+  confirmedHourly: { startTime: string; endTime: string }[];
+} {
+  return {
+    confirmedFullDay: rows.some((c) => c.isFullDay),
+    confirmedHourly: rows
+      .filter((c) => !c.isFullDay && c.startTime && c.endTime)
+      .map((c) => ({ startTime: c.startTime!, endTime: c.endTime! })),
+  };
+}
+
+// Write-side изражение на «само потвърдена целодневна блокира деня»: конфликт на заявка срещу
+// потвърдените за същата дата. generateDaySlots прилага същото правило read-side.
+export function conflictsWithConfirmed(
+  req: { isFullDay: boolean; startTime: string | null; endTime: string | null },
+  confirmed: { isFullDay: boolean; startTime: string | null; endTime: string | null }[],
+): "date" | "slot" | null {
+  if (req.isFullDay) return confirmed.length > 0 ? "date" : null;
+  if (confirmed.some((c) => c.isFullDay)) return "date";
+  const overlap = confirmed.some(
+    (c) => !c.isFullDay && c.startTime && c.endTime && overlaps(req.startTime!, req.endTime!, c.startTime, c.endTime),
+  );
+  return overlap ? "slot" : null;
+}
+
 export function generateDaySlots(input: {
   rules: { startTime: string; endTime: string }[];
   durationMinutes: number;

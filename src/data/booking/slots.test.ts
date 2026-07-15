@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { addMinutes, generateDaySlots, isPastDate, overlaps, todaySofia, weekdayOf, yesterdaySofia } from "./slots";
+import { addMinutes, conflictsWithConfirmed, generateDaySlots, isPastDate, overlaps, splitConfirmed, todaySofia, weekdayOf, yesterdaySofia } from "./slots";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -220,4 +220,24 @@ test("yesterdaySofia: около DST прехода (март 2026) — UTC-пл
   vi.setSystemTime(new Date("2026-03-29T21:30:00Z")); // Sofia превключва към лятно време тази нощ; локално 2026-03-30 00:30
   expect(todaySofia()).toBe("2026-03-30");
   expect(yesterdaySofia()).toBe("2026-03-29");
+});
+
+test("conflictsWithConfirmed: правилото «само потвърдена целодневна блокира деня»", () => {
+  const hourly = (startTime: string, endTime: string) => ({ isFullDay: false, startTime, endTime });
+  const fullDay = { isFullDay: true, startTime: null, endTime: null };
+  // целодневна заявка: всяка потвърдена (все едно каква) взима датата
+  expect(conflictsWithConfirmed(fullDay, [hourly("10:00", "12:00")])).toBe("date");
+  expect(conflictsWithConfirmed(fullDay, [])).toBe(null);
+  // часова заявка: потвърдена целодневна → date; застъпване → slot; допиращи се → свободно
+  expect(conflictsWithConfirmed(hourly("10:00", "12:00"), [fullDay])).toBe("date");
+  expect(conflictsWithConfirmed(hourly("10:00", "12:00"), [hourly("11:00", "13:00")])).toBe("slot");
+  expect(conflictsWithConfirmed(hourly("10:00", "12:00"), [hourly("12:00", "14:00")])).toBe(null);
+});
+
+test("splitConfirmed: целодневен флаг + само валидни часови интервали", () => {
+  expect(splitConfirmed([
+    { isFullDay: true, startTime: null, endTime: null },
+    { isFullDay: false, startTime: "10:00:00", endTime: "12:00:00" },
+    { isFullDay: false, startTime: null, endTime: null },
+  ])).toEqual({ confirmedFullDay: true, confirmedHourly: [{ startTime: "10:00:00", endTime: "12:00:00" }] });
 });

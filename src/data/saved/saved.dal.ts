@@ -2,10 +2,11 @@ import "server-only";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { category, city, listing, listingImage, promotion, savedListing } from "@/db/schema";
+import { listing, savedListing } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
 import type { PublicListingCardDTO } from "@/data/catalog/public.dto";
-import { activePromotionJoin, cardColumns, toCard } from "@/data/catalog/public-listing.dal";
+import { cardQuery, toCard } from "@/data/catalog/public-listing.dal";
+import { pgCode } from "@/data/pg";
 import type { ToggleSavedResult } from "./saved.dto";
 
 export class SavedDAL {
@@ -25,9 +26,7 @@ export class SavedDAL {
         .returning({ listingId: savedListing.listingId });
     } catch (err) {
       // ponytail: FK violation → неизвестна обява, не изтичаме Postgres детайли към клиента
-      // drizzle-orm/neon-serverless обвива pg грешката: реалният код е в err.cause.code
-      const code = (err as { code?: string; cause?: { code?: string } })?.cause?.code;
-      if (code === "23503") {
+      if (pgCode(err) === "23503") {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       throw err;
@@ -40,15 +39,10 @@ export class SavedDAL {
   }
 
   async list(): Promise<PublicListingCardDTO[]> {
-    const rows = await db
-      .select(cardColumns)
-      .from(savedListing)
-      .innerJoin(listing, and(eq(savedListing.listingId, listing.id), eq(listing.status, "published")))
-      .innerJoin(category, eq(listing.categoryId, category.id))
-      .innerJoin(city, eq(listing.cityId, city.id))
-      .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
-      .leftJoin(promotion, activePromotionJoin())
-      .where(eq(savedListing.userId, this.user.id))
+    // същият SQL като преди: inner join-ът комутира, published условието се мести от ON в WHERE
+    const rows = await cardQuery()
+      .innerJoin(savedListing, and(eq(savedListing.listingId, listing.id), eq(savedListing.userId, this.user.id)))
+      .where(eq(listing.status, "published"))
       .orderBy(desc(savedListing.createdAt));
     return rows.map(toCard);
   }

@@ -7,7 +7,8 @@ import { db } from "@/db";
 import { availabilityRule, blockedDate, booking, bookingServiceType, listing, user } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
 import { canManageCalendar } from "./booking.policy";
-import { generateDaySlots, weekdayOf } from "./slots";
+import { generateDaySlots, splitConfirmed, weekdayOf } from "./slots";
+import { offeredSlots } from "./availability";
 import type {
   AvailabilityDayDTO, AvailabilityRuleDTO, BlockedDateCreateInput, BlockedDateDTO,
   BookingDTO, IcalBookingRow, ServiceTypeCreateInput, ServiceTypeDTO, ServiceTypeUpdateInput,
@@ -253,24 +254,21 @@ export class PublicCalendarDAL {
     const hasFullDay = serviceTypes.some((s) => s.kind === "full_day");
     const hourlyDurations = serviceTypes.filter((s) => s.kind === "hourly" && s.durationMinutes).map((s) => s.durationMinutes!);
     const blockedSet = new Set(blocked.map((b) => b.date));
-    const fullDayConfirmedSet = new Set(confirmed.filter((c) => c.isFullDay).map((c) => c.eventDate));
-    const hourlyByDate = new Map<string, { startTime: string; endTime: string }[]>();
+    const confirmedByDate = new Map<string, typeof confirmed>();
     for (const c of confirmed) {
-      if (c.isFullDay || !c.startTime || !c.endTime) continue;
-      const list = hourlyByDate.get(c.eventDate) ?? [];
-      list.push({ startTime: c.startTime, endTime: c.endTime });
-      hourlyByDate.set(c.eventDate, list);
+      const list = confirmedByDate.get(c.eventDate) ?? [];
+      list.push(c);
+      confirmedByDate.set(c.eventDate, list);
     }
 
     const result: AvailabilityDayDTO[] = [];
     for (let d = 1; d <= daysInMonth; d++) {
       const date = `${year}-${pad(month)}-${pad(d)}`;
       const blockedDay = blockedSet.has(date);
-      const confirmedFullDay = fullDayConfirmedSet.has(date);
+      const { confirmedFullDay, confirmedHourly } = splitConfirmed(confirmedByDate.get(date) ?? []);
       let free = hasFullDay && !blockedDay && !confirmedFullDay;
       if (!free && hourlyDurations.length > 0) {
         const dayRules = rules.filter((r) => r.weekday === weekdayOf(date));
-        const confirmedHourly = hourlyByDate.get(date) ?? [];
         for (const durationMinutes of hourlyDurations) {
           const slots = generateDaySlots({ rules: dayRules, durationMinutes, blocked: blockedDay, confirmedFullDay, confirmedHourly });
           if (slots.length > 0) { free = true; break; }
@@ -296,21 +294,7 @@ export class PublicCalendarDAL {
       throw new TRPCError({ code: "NOT_FOUND" });
     }
 
-    const weekday = weekdayOf(date);
-    const [rules, blockedRows, confirmed] = await Promise.all([
-      db.select({ startTime: availabilityRule.startTime, endTime: availabilityRule.endTime })
-        .from(availabilityRule).where(and(eq(availabilityRule.listingId, listingId), eq(availabilityRule.weekday, weekday))),
-      db.select({ id: blockedDate.id }).from(blockedDate).where(and(eq(blockedDate.listingId, listingId), eq(blockedDate.date, date))),
-      db.select({ isFullDay: booking.isFullDay, startTime: booking.startTime, endTime: booking.endTime })
-        .from(booking).where(and(eq(booking.listingId, listingId), eq(booking.status, "confirmed"), eq(booking.eventDate, date))),
-    ]);
-
-    const confirmedFullDay = confirmed.some((c) => c.isFullDay);
-    const confirmedHourly = confirmed
-      .filter((c) => !c.isFullDay && c.startTime && c.endTime)
-      .map((c) => ({ startTime: c.startTime!, endTime: c.endTime! }));
-
-    return generateDaySlots({ rules, durationMinutes: st.durationMinutes, blocked: blockedRows.length > 0, confirmedFullDay, confirmedHourly });
+    return offeredSlots(listingId, st.durationMinutes, date);
   }
 
   async listActiveServiceTypes(listingId: string): Promise<ServiceTypeDTO[]> {

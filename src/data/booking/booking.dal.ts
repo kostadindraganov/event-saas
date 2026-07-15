@@ -2,9 +2,10 @@ import "server-only";
 import { and, desc, eq, inArray, lt, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { availabilityRule, blockedDate, booking, bookingServiceType, listing, review, user } from "@/db/schema";
+import { booking, bookingServiceType, listing, review, user } from "@/db/schema";
 import type { SessionUser } from "@/data/users/require-user";
-import { addMinutes, generateDaySlots, isPastDate, overlaps, todaySofia, weekdayOf } from "./slots";
+import { addMinutes, conflictsWithConfirmed, isPastDate, todaySofia } from "./slots";
+import { offeredSlots } from "./availability";
 import { canCancelBooking, canModerateBooking } from "./booking.policy";
 import {
   bookingCancelledEmail, bookingConfirmedEmail, bookingDeclinedEmail, bookingRequestedEmail, sendEmail,
@@ -121,28 +122,10 @@ export class BookingDAL {
       startTime = input.startTime.slice(0, 5);
       endTime = addMinutes(startTime, st.durationMinutes!);
 
-      // choke-point: заявеният слот трябва да е сред реално предлаганите — същата slot математика
-      // като PublicCalendarDAL.slotsDay (calendar.dal.ts), инлайнато тук (T7 mapper прецедент за
-      // умишлено малко дублиране между DAL-и вместо cross-file зависимост).
-      const weekday = weekdayOf(input.eventDate);
-      const [rules, blockedRows, confirmed] = await Promise.all([
-        db.select({ startTime: availabilityRule.startTime, endTime: availabilityRule.endTime })
-          .from(availabilityRule)
-          .where(and(eq(availabilityRule.listingId, input.listingId), eq(availabilityRule.weekday, weekday))),
-        db.select({ id: blockedDate.id }).from(blockedDate)
-          .where(and(eq(blockedDate.listingId, input.listingId), eq(blockedDate.date, input.eventDate))),
-        db.select({ isFullDay: booking.isFullDay, startTime: booking.startTime, endTime: booking.endTime })
-          .from(booking)
-          .where(and(eq(booking.listingId, input.listingId), eq(booking.status, "confirmed"), eq(booking.eventDate, input.eventDate))),
-      ]);
-      const confirmedFullDay = confirmed.some((c) => c.isFullDay);
-      const confirmedHourly = confirmed
-        .filter((c) => !c.isFullDay && c.startTime && c.endTime)
-        .map((c) => ({ startTime: c.startTime!, endTime: c.endTime! }));
-      const offeredSlots = generateDaySlots({
-        rules, durationMinutes: st.durationMinutes!, blocked: blockedRows.length > 0, confirmedFullDay, confirmedHourly,
-      });
-      const slotAvailable = offeredSlots.some((s) => s.startTime === startTime && s.endTime === endTime);
+      // choke-point: заявеният слот трябва да е сред реално предлаганите — същата дефиниция
+      // като PublicCalendarDAL.slotsDay (availability.ts).
+      const offered = await offeredSlots(input.listingId, st.durationMinutes!, input.eventDate);
+      const slotAvailable = offered.some((s) => s.startTime === startTime && s.endTime === endTime);
       if (!slotAvailable) throw new TRPCError({ code: "CONFLICT", message: "SLOT_UNAVAILABLE" });
     }
 
@@ -197,17 +180,13 @@ export class BookingDAL {
       if (row.status !== "pending") throw new TRPCError({ code: "CONFLICT", message: "NOT_PENDING" });
       if (isPastDate(row.eventDate)) throw new TRPCError({ code: "CONFLICT", message: "TOO_LATE" });
 
-      // freeness guard (D2)
+      // freeness guard (D2) — същото правило като read-side, през conflictsWithConfirmed
       const confirmedRows = await tx.select({ isFullDay: booking.isFullDay, startTime: booking.startTime, endTime: booking.endTime })
         .from(booking)
         .where(and(eq(booking.listingId, row.listingId), eq(booking.eventDate, row.eventDate), eq(booking.status, "confirmed")));
-      if (row.isFullDay) {
-        if (confirmedRows.length > 0) throw new TRPCError({ code: "CONFLICT", message: "DATE_TAKEN" });
-      } else {
-        if (confirmedRows.some((c) => c.isFullDay)) throw new TRPCError({ code: "CONFLICT", message: "DATE_TAKEN" });
-        const overlap = confirmedRows.some((c) => !c.isFullDay && c.startTime && c.endTime && overlaps(row.startTime!, row.endTime!, c.startTime, c.endTime));
-        if (overlap) throw new TRPCError({ code: "CONFLICT", message: "SLOT_TAKEN" });
-      }
+      const conflict = conflictsWithConfirmed(row, confirmedRows);
+      if (conflict === "date") throw new TRPCError({ code: "CONFLICT", message: "DATE_TAKEN" });
+      if (conflict === "slot") throw new TRPCError({ code: "CONFLICT", message: "SLOT_TAKEN" });
 
       // CAS → confirmed (partial unique index е DB backstop за race-а, catch 23505 defensively)
       let updated: { id: string } | undefined;
@@ -224,11 +203,8 @@ export class BookingDAL {
       const pendingRows = await tx.select({ id: booking.id, isFullDay: booking.isFullDay, startTime: booking.startTime, endTime: booking.endTime })
         .from(booking)
         .where(and(eq(booking.listingId, row.listingId), eq(booking.eventDate, row.eventDate), eq(booking.status, "pending"), ne(booking.id, id)));
-      const toDecline = row.isFullDay
-        ? pendingRows.map((p) => p.id)
-        : pendingRows
-            .filter((p) => p.isFullDay || (!!p.startTime && !!p.endTime && overlaps(row.startTime!, row.endTime!, p.startTime, p.endTime)))
-            .map((p) => p.id);
+      // pending p конфликтира с току-що потвърдения row ⇔ conflictsWithConfirmed(p, [row]) — същото правило
+      const toDecline = pendingRows.filter((p) => conflictsWithConfirmed(p, [row]) !== null).map((p) => p.id);
       if (toDecline.length > 0) {
         // CAS на status='pending': concurrent cancel/decline (без advisory lock) може да е commit-нал
         // терминален статус в прозореца след горния SELECT — не го презаписвай (D8 audit следа).

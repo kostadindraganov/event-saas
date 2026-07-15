@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, desc, eq, gt, gte, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, isNotNull, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   attributeDefinition, category, city, listing, listingAttribute,
@@ -14,7 +14,6 @@ import type {
 
 // една активна промоция per обява е app-level инвариант (activate + projectOrderEvent guard,
 // виж billing.dal.ts) → този LEFT JOIN връща максимум 1 ред на listing, без fanout риск.
-// export: ВСЕКИ консуматор на cardColumns трябва да join-не promotion с това условие (напр. SavedDAL).
 export function activePromotionJoin(): SQL {
   return and(
     eq(promotion.listingId, listing.id),
@@ -39,6 +38,20 @@ export const cardColumns = {
   publishedAt: listing.publishedAt,
   promotedStartsAt: promotion.startsAt, // non-null ⇒ promoted; стойността е и tie-breaker-ът
 };
+
+// Каноничният card select: колони + join-овете, които правят toCard() верен (вкл. промоционния
+// LEFT JOIN). Консуматорите (тук и SavedDAL) добавят само своите WHERE/ORDER/LIMIT/extra join-ове —
+// без конвенцията «не забравяй activePromotionJoin».
+export function cardQuery() {
+  return db
+    .select(cardColumns)
+    .from(listing)
+    .innerJoin(category, eq(listing.categoryId, category.id))
+    .innerJoin(city, eq(listing.cityId, city.id))
+    .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
+    .leftJoin(promotion, activePromotionJoin())
+    .$dynamic();
+}
 
 type CardRow = {
   id: string; slug: string; title: string;
@@ -213,13 +226,7 @@ export class PublicListingDAL {
       // затова първият ключ group-ва чисто без NULLS FIRST/LAST изненади от plain desc(timestamp).
       : [desc(sql`${promotion.startsAt} is not null`), desc(promotion.startsAt), desc(listing.publishedAt)];
 
-    const rows = await db
-      .select(cardColumns)
-      .from(listing)
-      .innerJoin(category, eq(listing.categoryId, category.id))
-      .innerJoin(city, eq(listing.cityId, city.id))
-      .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
-      .leftJoin(promotion, activePromotionJoin())
+    const rows = await cardQuery()
       .where(where)
       .orderBy(...orderBy)
       .limit(perPage)
@@ -253,13 +260,7 @@ export class PublicListingDAL {
     const tsq = sql`websearch_to_tsquery('simple', ${trimmed})`;
     const where = and(eq(listing.status, "published"), sql`${listing.searchTsv} @@ ${tsq}`);
 
-    const rows = await db
-      .select(cardColumns)
-      .from(listing)
-      .innerJoin(category, eq(listing.categoryId, category.id))
-      .innerJoin(city, eq(listing.cityId, city.id))
-      .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
-      .leftJoin(promotion, activePromotionJoin())
+    const rows = await cardQuery()
       .where(where)
       .orderBy(desc(listing.publishedAt))
       .limit(pp)
@@ -270,13 +271,7 @@ export class PublicListingDAL {
   }
 
   async recent(limit: number): Promise<PublicListingCardDTO[]> {
-    const rows = await db
-      .select(cardColumns)
-      .from(listing)
-      .innerJoin(category, eq(listing.categoryId, category.id))
-      .innerJoin(city, eq(listing.cityId, city.id))
-      .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
-      .leftJoin(promotion, activePromotionJoin())
+    const rows = await cardQuery()
       .where(eq(listing.status, "published"))
       .orderBy(desc(listing.publishedAt))
       .limit(Math.min(Math.max(limit, 1), 50));
@@ -284,15 +279,10 @@ export class PublicListingDAL {
   }
 
   // карусел «Промотирани» на началната — само активно промотирани published обяви
+  // (LEFT JOIN + `is not null` ≡ предишния INNER JOIN на promotion)
   async promoted(limit: number): Promise<PublicListingCardDTO[]> {
-    const rows = await db
-      .select(cardColumns)
-      .from(listing)
-      .innerJoin(category, eq(listing.categoryId, category.id))
-      .innerJoin(city, eq(listing.cityId, city.id))
-      .leftJoin(listingImage, eq(listing.coverImageId, listingImage.id))
-      .innerJoin(promotion, activePromotionJoin())
-      .where(eq(listing.status, "published"))
+    const rows = await cardQuery()
+      .where(and(eq(listing.status, "published"), isNotNull(promotion.startsAt)))
       .orderBy(desc(promotion.startsAt))
       .limit(Math.min(Math.max(limit, 1), 50));
     return rows.map(toCard);

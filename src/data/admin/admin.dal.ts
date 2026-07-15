@@ -31,11 +31,8 @@ import type {
   ReportRowDTO,
   ReportResolveInput,
 } from "./admin.dto";
-
-// drizzle-orm/neon-serverless обвива pg грешката — реалният код е в err.cause.code
-function pgCode(err: unknown): string | undefined {
-  return (err as { code?: string; cause?: { code?: string } })?.cause?.code;
-}
+import { pgCode } from "@/data/pg";
+import { LISTING_TRANSITIONS } from "@/data/catalog/catalog.policy";
 
 // fire-and-forget: чете email от user; огледален на billing.dal.ts:124-139 (never-throw в caller-а)
 async function notifyListingApproved(userId: string, listingTitle: string, slug: string): Promise<void> {
@@ -116,20 +113,20 @@ export class AdminDAL {
         .from(listing)
         .where(eq(listing.id, id));
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-      if (row.status !== "pending_approval") throw new TRPCError({ code: "CONFLICT", message: "NOT_PENDING" });
+      if (!LISTING_TRANSITIONS.approve.from.includes(row.status)) throw new TRPCError({ code: "CONFLICT", message: "NOT_PENDING" });
 
       await BillingDAL.assertCanPublish(tx, row.ownerId, row.categoryId, id);
 
       const [updated] = await tx
         .update(listing)
         .set({
-          status: "published",
+          status: LISTING_TRANSITIONS.approve.to,
           publishedAt: new Date(),
           rejectionReason: null,
           hiddenBySystem: false,
           updatedAt: new Date(),
         })
-        .where(and(eq(listing.id, id), eq(listing.status, "pending_approval")))
+        .where(and(eq(listing.id, id), inArray(listing.status, LISTING_TRANSITIONS.approve.from)))
         .returning({ ownerId: listing.ownerId, title: listing.title, slug: listing.slug, status: listing.status });
       if (!updated) throw new TRPCError({ code: "CONFLICT" }); // CAS изгубена — конкурентен преход
       return updated;
@@ -142,8 +139,8 @@ export class AdminDAL {
   static async reject(id: string, reason: string): Promise<{ slug: string; status: string }> {
     const [updated] = await db
       .update(listing)
-      .set({ status: "rejected", rejectionReason: reason, updatedAt: new Date() })
-      .where(and(eq(listing.id, id), eq(listing.status, "pending_approval")))
+      .set({ status: LISTING_TRANSITIONS.reject.to, rejectionReason: reason, updatedAt: new Date() })
+      .where(and(eq(listing.id, id), inArray(listing.status, LISTING_TRANSITIONS.reject.from)))
       .returning({ ownerId: listing.ownerId, title: listing.title, slug: listing.slug, status: listing.status });
     if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
     void notifyListingRejected(updated.ownerId, updated.title, reason, id).catch((e) => console.error("email failed", e));
@@ -154,8 +151,8 @@ export class AdminDAL {
   static async remove(id: string): Promise<{ slug: string; status: string }> {
     const [updated] = await db
       .update(listing)
-      .set({ status: "removed", updatedAt: new Date() })
-      .where(and(eq(listing.id, id), inArray(listing.status, ["published", "hidden"])))
+      .set({ status: LISTING_TRANSITIONS.remove.to, updatedAt: new Date() })
+      .where(and(eq(listing.id, id), inArray(listing.status, LISTING_TRANSITIONS.remove.from)))
       .returning({ slug: listing.slug, status: listing.status });
     if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
     return { slug: updated.slug, status: updated.status };
@@ -542,12 +539,11 @@ export class AdminDAL {
             .returning({ id: question.id });
           if (!updated) throw new TRPCError({ code: "CONFLICT", message: "TARGET_NOT_ACTIONABLE" });
         } else {
-          // CAS mirrors AdminDAL.remove: hide from published only, remove from published|hidden
-          // (plan header reconciliation #6 — supersedes interfaces.md §7's stale published|hidden-for-hide note)
-          const fromStatuses = input.action === "hide" ? (["published"] as const) : (["published", "hidden"] as const);
+          // Същите преходи като owner hide / admin remove — от таблицата, не копирани
+          const t = input.action === "hide" ? LISTING_TRANSITIONS.hide : LISTING_TRANSITIONS.remove;
           const [updated] = await tx.update(listing)
-            .set({ status: input.action === "hide" ? "hidden" : "removed", updatedAt: new Date() })
-            .where(and(eq(listing.id, rpt.targetId), inArray(listing.status, fromStatuses)))
+            .set({ status: t.to, updatedAt: new Date() })
+            .where(and(eq(listing.id, rpt.targetId), inArray(listing.status, t.from)))
             .returning({ slug: listing.slug });
           // no row matched → target already in a non-actionable state; rollback, don't resolve the report
           if (!updated) throw new TRPCError({ code: "CONFLICT", message: "TARGET_NOT_ACTIONABLE" });

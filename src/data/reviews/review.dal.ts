@@ -11,12 +11,9 @@ import type {
   MyReviewDTO, VendorReviewDTO,
 } from "./review.dto";
 
-const EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
+import { pgCode } from "@/data/pg";
 
-// drizzle-orm/neon-serverless обвива pg грешката — реалният код е в err.cause.code (копирано от admin.dal.ts)
-function pgCode(err: unknown): string | undefined {
-  return (err as { cause?: { code?: string } })?.cause?.code;
-}
+const EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 // споделено между create()/edit() — 5-те под-оценки → ratingOverall numeric(3,2) като string
 function ratingOverallOf(input: {

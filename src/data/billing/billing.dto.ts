@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type SubscriptionDTO = {
   plan: "standard" | "premium";
   status: "active" | "past_due" | "canceled" | "revoked";
@@ -27,3 +29,27 @@ export type MyPromotionListingDTO = {
   promoActive: boolean;
   promoEndsAt: string | null; // ISO
 };
+
+// Zod на външния Polar seam (ADR-0002 дисциплината, приложена и към webhooks): само полетата,
+// които проекцията реално ползва. Несъответствие на формата → safeParse fail → log+skip в lib/auth.ts,
+// така предположението за shape-а е проверимо на runtime (и тестваемо с реални payload-и).
+export const PolarSubscriptionEventSchema = z.object({
+  customer: z.object({ externalId: z.string().nullable() }).nullish(),
+  data: z.object({
+    id: z.string(),
+    status: z.string(),
+    currentPeriodEnd: z.union([z.string(), z.date()]).nullish(),
+    productId: z.string(),
+  }),
+});
+export type PolarSubscriptionEventPayload = z.infer<typeof PolarSubscriptionEventSchema>;
+
+export const PolarOrderPaidSchema = z.object({
+  customer: z.object({ externalId: z.string().nullable() }).nullish(),
+  data: z.object({
+    id: z.string(),
+    productId: z.string(),
+    metadata: z.record(z.string(), z.unknown()).nullish(),
+  }),
+});
+export type PolarOrderPaidPayload = z.infer<typeof PolarOrderPaidSchema>;

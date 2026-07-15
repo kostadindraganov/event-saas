@@ -2,6 +2,7 @@ import { ReviewDAL } from "@/data/reviews/review.dal";
 import { yesterdaySofia } from "@/data/booking/slots";
 import { reviewReminderEmail, sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/seo";
+import { cronAuthorized } from "@/lib/cron-auth";
 
 // fire-and-forget: findReminderTargets() вече връща email+listingTitle, затова не се
 // нуждае от допълнителна DB заявка тук (за разлика от booking.dal.ts notify* helper-ите).
@@ -17,8 +18,7 @@ async function notifyReviewReminder(target: { email: string; listingTitle: strin
 // (след auto-complete), напр.:
 //   30 4 * * * curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://<domain>/api/cron/review-reminder
 export async function POST(req: Request) {
-  const auth = req.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronAuthorized(req)) {
     return Response.json({ error: "UNAUTHORIZED" }, { status: 401 });
   }
   try {

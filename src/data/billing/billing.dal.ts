@@ -1,37 +1,28 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
-import { and, count, eq, gt, inArray, lt, lte, ne } from "drizzle-orm";
+import { and, count, eq, gt, inArray, lte, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { category, listing, promotion, setting, subscription, user } from "@/db/schema";
 import { BillingSettingsSchema } from "@/data/admin/admin.dto";
+import { LISTING_TRANSITIONS } from "@/data/catalog/catalog.policy";
 import { listingsHiddenEmail, sendEmail, subscriptionPastDueEmail } from "@/lib/email";
 import type { SessionUser } from "@/data/users/require-user";
-import type { BillingOverviewDTO, MyPromotionListingDTO, SubscriptionDTO, SystemHiddenListingDTO } from "./billing.dto";
+import type {
+  BillingOverviewDTO, MyPromotionListingDTO, PolarOrderPaidPayload, PolarSubscriptionEventPayload,
+  SubscriptionDTO, SystemHiddenListingDTO,
+} from "./billing.dto";
 
-// Тесен локален тип: точната форма на Polar webhook payload-а не е потвърдена в код —
-// пазим само полетата, които реално ползваме, и парсваме defensively.
-export type PolarSubscriptionEventPayload = {
-  customer: { externalId: string | null } | null;
-  data: {
-    id: string;
-    status: string;
-    currentPeriodEnd: string | Date | null;
-    productId: string;
-  };
-};
-
-// Тесен локален тип за Polar onOrderPaid — payload е camelCase (SDK трансформация, огледано
-// от PolarSubscriptionEventPayload по-долу, не суровия snake_case REST JSON).
-export type PolarOrderPaidPayload = {
-  customer: { externalId: string | null } | null;
-  data: {
-    id: string;
-    productId: string;
-    paid: boolean;
-    metadata: Record<string, unknown> | null;
-  };
-};
+// Единствената дефиниция на «Доставчик» (CONTEXT.md): User с активен абонамент = active,
+// или past_due в текущ гратисен прозорец. Cron-ът expireGracePeriods е отрицанието ѝ за past_due.
+export function isActiveForPublishing(
+  sub: { status: string; graceUntil: Date | null } | undefined | null,
+  now: Date = new Date(),
+): boolean {
+  if (!sub) return false;
+  return sub.status === "active" ||
+    (sub.status === "past_due" && sub.graceUntil !== null && sub.graceUntil > now);
+}
 
 function mapStatus(s: string): "active" | "past_due" | "canceled" | "revoked" | null {
   switch (s) {
@@ -58,8 +49,8 @@ function mapPlan(productId: string): "standard" | "premium" | null {
 export async function hideAllPublished(tx: Transaction, userId: string): Promise<number> {
   const rows = await tx
     .update(listing)
-    .set({ status: "hidden", hiddenBySystem: true, updatedAt: new Date() })
-    .where(and(eq(listing.ownerId, userId), eq(listing.status, "published")))
+    .set({ status: LISTING_TRANSITIONS.hide.to, hiddenBySystem: true, updatedAt: new Date() })
+    .where(and(eq(listing.ownerId, userId), inArray(listing.status, LISTING_TRANSITIONS.hide.from)))
     .returning({ id: listing.id });
   return rows.length;
 }
@@ -181,11 +172,7 @@ export class BillingDAL {
     const userId = this.user.id;
     return db.transaction(async (tx) => {
       const [subRow] = await tx.select().from(subscription).where(eq(subscription.userId, userId));
-      const activeForPublishing = subRow && (
-        subRow.status === "active" ||
-        (subRow.status === "past_due" && subRow.graceUntil !== null && subRow.graceUntil > new Date())
-      );
-      if (!activeForPublishing) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
+      if (!isActiveForPublishing(subRow)) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
 
       const hiddenRows = await tx
         .select({ id: listing.id, categoryId: listing.categoryId })
@@ -219,11 +206,11 @@ export class BillingDAL {
 
       const ids = hiddenRows.map((r) => r.id);
       await tx.update(listing)
-        .set({ status: "published", hiddenBySystem: false, publishedAt: new Date(), updatedAt: new Date() })
+        .set({ status: LISTING_TRANSITIONS.unhide.to, hiddenBySystem: false, publishedAt: new Date(), updatedAt: new Date() })
         .where(and(
           eq(listing.ownerId, userId),
           inArray(listing.id, ids),
-          eq(listing.status, "hidden"),
+          inArray(listing.status, LISTING_TRANSITIONS.unhide.from),
           eq(listing.hiddenBySystem, true),
         ));
       return { restored: ids.length };
@@ -235,11 +222,7 @@ export class BillingDAL {
     await db.transaction(async (tx) => {
       // планът гейтва семантиката: same select като restoreListings; без активен ред → NO_SUBSCRIPTION
       const [subRow] = await tx.select().from(subscription).where(eq(subscription.userId, userId));
-      const activeForPublishing = subRow && (
-        subRow.status === "active" ||
-        (subRow.status === "past_due" && subRow.graceUntil !== null && subRow.graceUntil > new Date())
-      );
-      if (!activeForPublishing) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
+      if (!isActiveForPublishing(subRow)) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
 
       const [row] = await tx.select().from(listing).where(eq(listing.id, listingId));
       // чужда обява ИЛИ не е system-hidden → NOT_FOUND, никога FORBIDDEN (без enumeration, contract т.7)
@@ -251,16 +234,16 @@ export class BillingDAL {
         // picker semantics ("избери коя 1 остава"): скрий всички ДРУГИ published сестри,
         // после публикувай избраната — след hide-а published=0, entitlement е тривиален (без assertCanPublish).
         await tx.update(listing)
-          .set({ status: "hidden", hiddenBySystem: true, updatedAt: new Date() })
-          .where(and(eq(listing.ownerId, userId), ne(listing.id, listingId), eq(listing.status, "published")));
+          .set({ status: LISTING_TRANSITIONS.hide.to, hiddenBySystem: true, updatedAt: new Date() })
+          .where(and(eq(listing.ownerId, userId), ne(listing.id, listingId), inArray(listing.status, LISTING_TRANSITIONS.hide.from)));
       } else {
         // premium: НИКАКЪВ sibling hide (чужди категории са легитимни) — само per-category entitlement
         await BillingDAL.assertCanPublish(tx, userId, row.categoryId, listingId);
       }
 
       await tx.update(listing)
-        .set({ status: "published", hiddenBySystem: false, publishedAt: new Date(), updatedAt: new Date() })
-        .where(and(eq(listing.id, listingId), eq(listing.status, "hidden")));
+        .set({ status: LISTING_TRANSITIONS.unhide.to, hiddenBySystem: false, publishedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(listing.id, listingId), inArray(listing.status, LISTING_TRANSITIONS.unhide.from)));
     });
   }
 
@@ -274,11 +257,7 @@ export class BillingDAL {
       if (!row || row.ownerId !== userId) throw new TRPCError({ code: "NOT_FOUND" });
 
       const [sub] = await tx.select().from(subscription).where(eq(subscription.userId, userId));
-      const active = !!sub && (
-        sub.status === "active" ||
-        (sub.status === "past_due" && !!sub.graceUntil && sub.graceUntil.getTime() > Date.now())
-      );
-      if (!sub || !active) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
+      if (!sub || !isActiveForPublishing(sub)) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
       if (sub.plan !== "premium") throw new TRPCError({ code: "FORBIDDEN", message: "PREMIUM_REQUIRED" });
 
       const usedSlots = await BillingDAL.countActiveIncludedPromotions(tx, userId);
@@ -350,12 +329,7 @@ export class BillingDAL {
     excludeListingId: string,
   ): Promise<void> {
     const [sub] = await tx.select().from(subscription).where(eq(subscription.userId, userId));
-    const now = Date.now();
-    const active = !!sub && (
-      sub.status === "active" ||
-      (sub.status === "past_due" && !!sub.graceUntil && sub.graceUntil.getTime() > now)
-    );
-    if (!sub || !active) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
+    if (!sub || !isActiveForPublishing(sub)) throw new TRPCError({ code: "FORBIDDEN", message: "NO_SUBSCRIPTION" });
 
     const { limits } = await getBillingSettings();
     const n = sub.plan === "standard"
@@ -506,10 +480,12 @@ export class BillingDAL {
   // не блокира batch-а (отделна транзакция per-user).
   static async expireGracePeriods(): Promise<{ hidden: number; users: string[] }> {
     const now = new Date();
-    const expired = await db
-      .select({ userId: subscription.userId })
+    // изтекъл = past_due, който вече НЕ е isActiveForPublishing (същата дефиниция, не отделен SQL израз)
+    const pastDue = await db
+      .select({ userId: subscription.userId, status: subscription.status, graceUntil: subscription.graceUntil })
       .from(subscription)
-      .where(and(eq(subscription.status, "past_due"), lt(subscription.graceUntil, now)));
+      .where(eq(subscription.status, "past_due"));
+    const expired = pastDue.filter((s) => !isActiveForPublishing(s, now));
 
     let hidden = 0;
     const users: string[] = [];

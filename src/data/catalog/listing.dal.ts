@@ -1,11 +1,11 @@
 import "server-only";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { listing, listingServiceRegion } from "@/db/schema";
 import { slugifyBg } from "@/lib/slug";
 import { pgCode } from "@/data/pg";
 import type { SessionUser } from "@/data/users/require-user";
-import { canCreateListing, canEditListing, canSubmitListing } from "./catalog.policy";
+import { canCreateListing, canEditListing, canSubmitListing, LISTING_TRANSITIONS } from "./catalog.policy";
 import type { ListingCreateInput, ListingDTO, ListingSummaryDTO, ListingUpdateInput } from "./catalog.dto";
 import { PublicListingDAL } from "./public-listing.dal";
 import { BillingDAL } from "@/data/billing/billing.dal";
@@ -118,17 +118,17 @@ export class ListingDAL {
         .select({ categoryId: listing.categoryId, status: listing.status })
         .from(listing)
         .where(eq(listing.id, id));
-      if (!fresh || (fresh.status !== "draft" && fresh.status !== "rejected")) throw new Error("FORBIDDEN");
+      if (!fresh || !LISTING_TRANSITIONS.submit.from.includes(fresh.status)) throw new Error("FORBIDDEN");
       await BillingDAL.assertCanPublish(tx, userId, fresh.categoryId, id);
       const [updatedRow] = await tx
         .update(listing)
         .set({
-          status: "pending_approval",
+          status: LISTING_TRANSITIONS.submit.to,
           rejectionReason: null,
           hiddenBySystem: false,
           updatedAt: new Date(),
         })
-        .where(and(eq(listing.id, id), or(eq(listing.status, "draft"), eq(listing.status, "rejected"))))
+        .where(and(eq(listing.id, id), inArray(listing.status, LISTING_TRANSITIONS.submit.from)))
         .returning();
       if (!updatedRow) throw new Error("FORBIDDEN"); // CAS изгубена — статусът се е сменил конкурентно
       return updatedRow;
@@ -136,25 +136,21 @@ export class ListingDAL {
     return toDTO(updated, await this.regionIds(id));
   }
 
-  private async setStatus(id: string, from: "published" | "hidden", to: "published" | "hidden"): Promise<ListingDTO> {
+  async hide(id: string): Promise<ListingDTO> {
     const row = await this.ownedRow(id);
-    if (row.status !== from) throw new Error("FORBIDDEN");
+    if (!LISTING_TRANSITIONS.hide.from.includes(row.status)) throw new Error("FORBIDDEN");
     const [updated] = await db
       .update(listing)
-      .set({ status: to, updatedAt: new Date() })
-      .where(and(eq(listing.id, id), eq(listing.status, from)))
+      .set({ status: LISTING_TRANSITIONS.hide.to, updatedAt: new Date() })
+      .where(and(eq(listing.id, id), inArray(listing.status, LISTING_TRANSITIONS.hide.from)))
       .returning();
     if (!updated) throw new Error("NOT_FOUND");
     return toDTO(updated, await this.regionIds(id));
   }
 
-  hide(id: string) {
-    return this.setStatus(id, "published", "hidden");
-  }
-
   async unhide(id: string): Promise<ListingDTO> {
     const row = await this.ownedRow(id);
-    if (row.status !== "hidden") throw new Error("FORBIDDEN");
+    if (!LISTING_TRANSITIONS.unhide.from.includes(row.status)) throw new Error("FORBIDDEN");
     const userId = this.user.id;
     // транзакция: entitlement guard + CAS UPDATE атомарно (иначе hide→unhide заобикаля лимита от submit())
     const updated = await db.transaction(async (tx) => {
@@ -162,12 +158,12 @@ export class ListingDAL {
         .select({ categoryId: listing.categoryId, status: listing.status })
         .from(listing)
         .where(eq(listing.id, id));
-      if (!fresh || fresh.status !== "hidden") throw new Error("FORBIDDEN");
+      if (!fresh || !LISTING_TRANSITIONS.unhide.from.includes(fresh.status)) throw new Error("FORBIDDEN");
       await BillingDAL.assertCanPublish(tx, userId, fresh.categoryId, id);
       const [updatedRow] = await tx
         .update(listing)
-        .set({ status: "published", hiddenBySystem: false, updatedAt: new Date() })
-        .where(and(eq(listing.id, id), eq(listing.status, "hidden")))
+        .set({ status: LISTING_TRANSITIONS.unhide.to, hiddenBySystem: false, updatedAt: new Date() })
+        .where(and(eq(listing.id, id), inArray(listing.status, LISTING_TRANSITIONS.unhide.from)))
         .returning();
       if (!updatedRow) throw new Error("FORBIDDEN"); // CAS изгубена
       return updatedRow;

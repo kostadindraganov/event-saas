@@ -4,13 +4,20 @@ import { nextCookies } from "better-auth/next-js";
 import { polar, checkout, portal, webhooks } from "@polar-sh/better-auth";
 import { Polar } from "@polar-sh/sdk";
 import { db } from "@/db";
-import { BillingDAL, type PolarSubscriptionEventPayload, type PolarOrderPaidPayload } from "@/data/billing/billing.dal";
+import { BillingDAL } from "@/data/billing/billing.dal";
+import { PolarOrderPaidSchema, PolarSubscriptionEventSchema } from "@/data/billing/billing.dto";
 
 // Polar е at-least-once; никога не хвърляй тук — webhook route-ът трябва да отговори 200,
 // иначе Polar ще retry-ва безкрайно (upsert-ът е идемпотентен, дублирана доставка е ОК).
+// Формата се проверява със Zod на seam-а: неочакван shape → log+skip, не тихо счупена проекция.
 async function handleSubscriptionEvent(raw: unknown): Promise<void> {
+  const parsed = PolarSubscriptionEventSchema.safeParse(raw);
+  if (!parsed.success) {
+    console.error("Polar webhook: неочаквана форма на payload", parsed.error);
+    return;
+  }
   try {
-    await BillingDAL.projectSubscriptionEvent(raw as PolarSubscriptionEventPayload);
+    await BillingDAL.projectSubscriptionEvent(parsed.data);
   } catch (e) {
     console.error("Polar webhook проекция гръмна", e);
   }
@@ -18,8 +25,13 @@ async function handleSubscriptionEvent(raw: unknown): Promise<void> {
 
 // onOrderPaid е one-time покупка (промоция) — аналогичен wrapper, никога не хвърля (Polar at-least-once).
 async function handleOrderPaidEvent(raw: unknown): Promise<void> {
+  const parsed = PolarOrderPaidSchema.safeParse(raw);
+  if (!parsed.success) {
+    console.error("Polar order webhook: неочаквана форма на payload", parsed.error);
+    return;
+  }
   try {
-    await BillingDAL.projectOrderEvent(raw as PolarOrderPaidPayload);
+    await BillingDAL.projectOrderEvent(parsed.data);
   } catch (e) {
     console.error("Polar order webhook проекция гръмна", e);
   }
