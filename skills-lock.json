@@ -7,6 +7,30 @@
       "skillPath": "better-auth/best-practices/SKILL.md",
       "computedHash": "61ba0ef64ed2e7c424401cc848ca33dd6d790a720c44727717dc0c5cba5fc122"
     },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "4eabc66183767153e404b39d1b839b1c37f2d82d86f0a0d7e880a579d8d62336"
+    },
+    "neon-drizzle": {
+      "source": "neondatabase/ai-rules",
+      "sourceType": "github",
+      "skillPath": "neon-plugin/skills/neon-drizzle/SKILL.md",
+      "computedHash": "3dc145538f2ffe9b69adc6c6b4f5afa4f1dd2e5910cb2b4d812b05969f8b2fb6"
+    },
+    "neon-postgres": {
+      "source": "neondatabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/neon-postgres/SKILL.md",
+      "computedHash": "30ef5dc6ed7294150ccba0bc921573e9d59a73bd1ffa34b1ba5143d0a468ca31"
+    },
+    "next-best-practices": {
+      "source": "vercel-labs/openreview",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/next-best-practices/SKILL.md",
+      "computedHash": "db85045827ebeb83ac8dbc992b69188755eeb74dcf01cbf5e694d58aa494a106"
+    },
     "shadcn": {
       "source": "shadcn/ui",
       "sourceType": "github",
